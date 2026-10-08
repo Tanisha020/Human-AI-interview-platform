@@ -1,0 +1,218 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CANDIDATE
+  INTERVIEWER
+  ADMIN
+}
+
+enum InterviewStatus {
+  DRAFT
+  SCHEDULED
+  LIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum InterviewDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum ParticipantRole {
+  CANDIDATE
+  INTERVIEWER
+}
+
+enum QuestionType {
+  TECHNICAL
+  BEHAVIORAL
+  PROBLEM_SOLVING
+  GENERAL
+}
+
+enum EvaluationSource {
+  AI
+  HUMAN
+}
+
+enum MessageType {
+  CHAT
+  SYSTEM
+  HUMAN_NOTE
+}
+
+enum TranscriptType {
+  PARTIAL
+  FINAL
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(CANDIDATE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  interviewsCreated Interview[]     @relation("InterviewCreator")
+  participants      Participant[]
+  answers           Answer[]
+  evaluations       Evaluation[]
+  messages          ChatMessage[]
+  reports           InterviewReport[]
+}
+
+model Interview {
+  id             String              @id @default(cuid())
+  title          String
+  jobTitle       String
+  jobDescription String
+  difficulty     InterviewDifficulty
+  duration       Int
+  scheduledAt    DateTime
+  status         InterviewStatus     @default(DRAFT)
+
+  createdById String
+  createdBy   User @relation("InterviewCreator", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants Participant[]
+  questions    Question[]
+  answers      Answer[]
+  transcripts  Transcript[]
+  evaluations  Evaluation[]
+  messages     ChatMessage[]
+  report       InterviewReport?
+}
+
+model Participant {
+  id          String          @id @default(cuid())
+  interviewId String
+  userId      String
+  role        ParticipantRole
+
+  joinedAt DateTime?
+  leftAt   DateTime?
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([interviewId, userId])
+}
+
+model Question {
+  id             String              @id @default(cuid())
+  interviewId    String
+  question       String
+  type           QuestionType
+  difficulty     InterviewDifficulty
+  orderIndex     Int
+  expectedTopics String?
+
+  createdAt DateTime @default(now())
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  answers   Answer[]
+
+  @@index([interviewId, orderIndex])
+}
+
+model Answer {
+  id           String @id @default(cuid())
+  interviewId  String
+  questionId   String
+  candidateId  String
+  answerText   String
+  durationMs   Int?
+
+  createdAt DateTime @default(now())
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  question  Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  candidate User      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  evaluations Evaluation[]
+}
+
+model Transcript {
+  id          String         @id @default(cuid())
+  interviewId String
+  speakerId   String?
+  type        TranscriptType
+  text        String
+
+  createdAt DateTime @default(now())
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+}
+
+model Evaluation {
+  id          String           @id @default(cuid())
+  interviewId String
+  answerId    String?
+  evaluatorId String?
+  source      EvaluationSource
+
+  technicalKnowledge Int
+  problemSolving    Int
+  communication     Int
+  relevance         Int
+  confidence        Int
+  behavioral        Int
+  jobSkills         Int
+
+  strengths  String?
+  weaknesses String?
+  feedback   String?
+
+  createdAt DateTime @default(now())
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  answer    Answer?   @relation(fields: [answerId], references: [id], onDelete: Cascade)
+  evaluator User?     @relation(fields: [evaluatorId], references: [id], onDelete: SetNull)
+}
+
+model ChatMessage {
+  id          String      @id @default(cuid())
+  interviewId String
+  senderId    String?
+  type        MessageType
+  message     String
+
+  createdAt DateTime @default(now())
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  sender    User?      @relation(fields: [senderId], references: [id], onDelete: SetNull)
+}
+
+model InterviewReport {
+  id          String @id @default(cuid())
+  interviewId String @unique
+  candidateId String
+
+  overallScore Float?
+
+  summary        String?
+  strengths      String?
+  weaknesses     String?
+  recommendation String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  candidate User      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+}

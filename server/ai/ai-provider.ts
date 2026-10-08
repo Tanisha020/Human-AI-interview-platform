@@ -1,0 +1,37 @@
+export type InterviewContext = {
+  jobTitle?: string;
+  jobDescription?: string;
+  difficulty?: string;
+  questionNumber: number;
+  currentQuestion?: string | null;
+  conversation: {
+    speaker: "AI" | "CANDIDATE" | "HUMAN";
+    text: string;
+  }[];
+};
+
+export type AIQuestion = {
+  question: string;
+  type: "INTRODUCTION" | "TECHNICAL" | "BEHAVIORAL" | "FOLLOW_UP";
+  reason?: string;
+};
+
+export type AIAnswerAnalysis = {
+  score: number;
+  strengths: string[];
+  weaknesses: string[];
+  feedback: string;
+  shouldFollowUp: boolean;
+  followUpQuestion?: string;
+};
+
+export interface AIProvider {
+  generateQuestion(
+    context: InterviewContext
+  ): Promise<AIQuestion>;
+
+  analyzeAnswer(
+    context: InterviewContext,
+    answer: string
+  ): Promise<AIAnswerAnalysis>;
+}
