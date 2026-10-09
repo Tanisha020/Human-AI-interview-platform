@@ -34,7 +34,7 @@ This roadmap continues the existing repository; it is not a rewrite. Core change
 | 21 | Admin monitoring | Implemented dynamic counts and recent interview table; account-editing tools remain future work |
 | 22 | Security and privacy | In progress: signed expiring room tickets, DB-backed room membership, authorized controls/chat/signaling, authorized report/evaluation APIs; rate limits and broader privacy controls remain |
 | 23 | Failure recovery | In progress: bounded Ollama timeout, async stale-result guards, environment bootstrap, database/Ollama health endpoint; reconnect retry/backoff and stale-room cleanup remain |
-| 24 | End-to-end tests | In progress: state-machine regression tests and GitHub Actions for tests/typecheck/lint; real two-browser/device regression remains |
+| 24 | End-to-end tests | In progress: state-machine regression tests and manual-only GitHub Actions for tests/typecheck/lint; real two-browser/device regression remains |
 | 25 | Final UX, documentation, deployment | In progress: configurable app/socket URLs, environment example, Windows setup README, admin dashboard and final-report viewer; production deployment guide and full UI polish remain |
 
 ## Regression checklist
