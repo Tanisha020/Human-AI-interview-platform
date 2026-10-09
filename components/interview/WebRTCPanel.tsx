@@ -79,6 +79,11 @@ type TranscriptItem = {
   timestamp: string;
 };
 
+type InterimTranscript = {
+  speaker: string;
+  text: string;
+};
+
 type RemoteParticipant = {
   name: string;
   role: UserRole;
@@ -204,6 +209,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
   }
 
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
+  const [interimTranscript, setInterimTranscript] = useState<InterimTranscript | null>(null);
 
   const [answerText, setAnswerText] = useState("");
 
@@ -215,6 +221,8 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
   const [interimText, setInterimText] = useState("");
 
   const speechRecognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const shouldKeepListeningRef = useRef(false);
+  const recognitionRestartTimerRef = useRef<number | null>(null);
 
   const isInterviewer = userRole === "INTERVIEWER" || userRole === "ADMIN";
 
@@ -538,11 +546,31 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
 
     function handleInterviewState(data: InterviewState) {
       setInterviewState(data);
+
+      // A human takeover, pause, or completed interview must stop speech
+      // immediately instead of allowing the previous AI question to continue.
+      if (
+        isInterviewer &&
+        (data.aiPausedByHuman || data.state === "HUMAN_TURN" ||
+          data.state === "PAUSED_BY_HUMAN" || data.state === "COMPLETED") &&
+        typeof window !== "undefined" &&
+        "speechSynthesis" in window
+      ) {
+        window.speechSynthesis.cancel();
+      }
     }
 
     function handleTranscript(data: TranscriptItem) {
-      // Keep the live UI responsive during long interviews.
-      setTranscript((previous) => [...previous, data].slice(-150));
+      setTranscript((previous) => [...previous, data].slice(-100));
+      setInterimTranscript((previous) =>
+        previous?.speaker === data.speaker ? null : previous
+      );
+    }
+
+    function handleInterimTranscript(data: InterimTranscript) {
+      setInterimTranscript(
+        data.text.trim() ? { speaker: data.speaker, text: data.text.trim() } : null
+      );
     }
 
     function handleQuestionReset() {
@@ -563,6 +591,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
       }
 
       setInterimText("");
+      setInterimTranscript(null);
       setInterviewState((previous) => ({
         ...previous,
         currentQuestion: null,
@@ -718,6 +747,8 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
 
     socket.on("transcript:update", handleTranscript);
 
+    socket.on("transcript:interim", handleInterimTranscript);
+
     socket.on("existing-peer", handleExistingPeer);
 
     socket.on("peer-joined", handlePeerJoined);
@@ -750,6 +781,8 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
       socket.off("question:reset", handleQuestionReset);
 
       socket.off("transcript:update", handleTranscript);
+
+      socket.off("transcript:interim", handleInterimTranscript);
 
       socket.off("existing-peer", handleExistingPeer);
 
@@ -1022,9 +1055,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
   // =====================================================
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
+    if (typeof window === "undefined") return;
 
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1035,10 +1066,10 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
     }
 
     const recognition = new SpeechRecognition();
-
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = "en-IN";
+    speechRecognitionRef.current = recognition;
 
     recognition.onstart = () => {
       setIsListening(true);
@@ -1064,16 +1095,21 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
       const socket = socketRef.current;
       const cleanFinalText = finalText.trim();
 
+      if (socket && temporaryText.trim()) {
+        socket.emit("transcript:interim", {
+          roomId,
+          text: temporaryText.trim(),
+        });
+      } else if (socket && cleanFinalText) {
+        socket.emit("transcript:interim", { roomId, text: "" });
+      }
+
       if (cleanFinalText && socket) {
-        // Send the recognized speech to the server.
-        // The server assigns the speaker label from the joined role.
         socket.emit("transcript:segment", {
           roomId,
           text: cleanFinalText,
         });
 
-        // Only candidate speech should fill the answer editor.
-        // Interviewer speech is transcribed into the shared transcript.
         if (userRole === "CANDIDATE") {
           setAnswerText((previous) => {
             const separator = previous.trim().length > 0 ? " " : "";
@@ -1086,44 +1122,55 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
     };
 
     recognition.onerror = (event) => {
-      const speechEvent = event as Event & {
-        error?: string;
-      };
-
+      const speechEvent = event as Event & { error?: string };
       const errorType = speechEvent.error || "unknown";
-
       console.warn("Speech recognition error:", errorType);
-
       setIsListening(false);
 
-      if (errorType === "not-allowed") {
+      if (errorType === "not-allowed" || errorType === "service-not-allowed") {
+        shouldKeepListeningRef.current = false;
         setSpeechSupported(false);
-        setError(
-          "Microphone or speech recognition permission was denied. You can still type your answer.",
-        );
+        setError("Microphone or speech recognition permission was denied. You can still type your answer.");
       } else if (errorType === "no-speech") {
-        setError("No speech was detected. Try speaking again.");
+        // Silence is normal in an interview; onend will restart recognition.
+        setError("");
       } else {
-        setError(
-          "Speech recognition stopped. You can restart it or type your answer.",
-        );
+        setError("Speech recognition stopped. You can restart it or type your answer.");
       }
     };
 
     recognition.onend = () => {
       setIsListening(false);
       setInterimText("");
-    };
-
-    speechRecognitionRef.current = recognition;
-
-    return () => {
-      try {
-        recognition.abort();
-      } catch (error) {
-        console.warn("Speech recognition cleanup failed:", error);
+      if (recognitionRestartTimerRef.current !== null) {
+        window.clearTimeout(recognitionRestartTimerRef.current);
+        recognitionRestartTimerRef.current = null;
       }
 
+      // Chrome/Edge may end a continuous session after a silence or network
+      // pause. Restart only while the user has explicitly enabled listening.
+      if (shouldKeepListeningRef.current) {
+        recognitionRestartTimerRef.current = window.setTimeout(() => {
+          if (!shouldKeepListeningRef.current) return;
+          try {
+            recognition.start();
+          } catch {
+            // A browser may still be completing the previous recognition session.
+          }
+        }, 300);
+      }
+    };
+
+    return () => {
+      shouldKeepListeningRef.current = false;
+      if (recognitionRestartTimerRef.current !== null) {
+        window.clearTimeout(recognitionRestartTimerRef.current);
+      }
+      try {
+        recognition.abort();
+      } catch {
+        // The recognition session may already have stopped.
+      }
       speechRecognitionRef.current = null;
     };
   }, [roomId, userRole]);
@@ -1143,13 +1190,19 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
       return;
     }
 
-    if (isListening) {
+    if (isListening || shouldKeepListeningRef.current) {
+      shouldKeepListeningRef.current = false;
+      if (recognitionRestartTimerRef.current !== null) {
+        window.clearTimeout(recognitionRestartTimerRef.current);
+        recognitionRestartTimerRef.current = null;
+      }
       recognition.stop();
       return;
     }
 
     try {
       setError("");
+      shouldKeepListeningRef.current = true;
       recognition.start();
     } catch (error) {
       console.error("Could not start speech recognition:", error);
@@ -1181,6 +1234,13 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
       text: answer,
     });
 
+    shouldKeepListeningRef.current = false;
+    try {
+      speechRecognitionRef.current?.stop();
+    } catch {
+      // Recognition may already have ended.
+    }
+    setIsListening(false);
     setAnswerText("");
     setInterimText("");
     setError("");
@@ -1578,10 +1638,10 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
               <span className="text-[10px] text-slate-600">Live</span>
             </div>
 
-            {transcript.length === 0 ? (
+            {transcript.length === 0 && !interimTranscript ? (
               <div className="rounded-xl border border-dashed border-white/[0.08] p-4 text-center">
                 <p className="text-xs text-slate-600">
-                  Transcript will appear here as the interview progresses.
+                  Start live transcription to see speech from both participants.
                 </p>
               </div>
             ) : (
@@ -1594,12 +1654,17 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
                     <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-blue-400">
                       {item.speaker}
                     </p>
-
-                    <p className="text-xs leading-5 text-slate-300">
-                      {item.text}
-                    </p>
+                    <p className="text-xs leading-5 text-slate-300">{item.text}</p>
                   </div>
                 ))}
+                {interimTranscript && (
+                  <div className="rounded-xl border border-blue-400/20 bg-blue-500/[0.06] p-3">
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-blue-300">
+                      {interimTranscript.speaker} · listening
+                    </p>
+                    <p className="text-xs leading-5 text-slate-200">{interimTranscript.text}</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1613,6 +1678,16 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
               </p>
 
               <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={toggleSpeechRecognition}
+                  disabled={!speechSupported || interviewState.state === "COMPLETED"}
+                  title="Transcribe the interviewer's speech into the shared live transcript"
+                  className="col-span-2 rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-2.5 text-xs text-violet-200 transition hover:bg-violet-500/15 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {isListening ? "Stop live transcript" : "Start live transcript"}
+                </button>
+
                 {/* START INTERVIEW */}
                 <button
                   type="button"
