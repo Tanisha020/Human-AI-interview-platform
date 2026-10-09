@@ -10,7 +10,7 @@ const createInterviewSchema = z.object({
   jobDescription: z.string().trim().min(10),
   difficulty: z.enum(["EASY", "MEDIUM", "HARD"]),
   duration: z.number().int().min(15).max(180),
-  scheduledAt: z.string().min(1),
+  scheduledAt: z.string().datetime({ offset: true }),
   candidateEmail: z.string().trim().email(),
 });
 
@@ -56,24 +56,14 @@ export async function POST(request: Request) {
       candidateEmail,
     } = result.data;
 
-    /*
-     * datetime-local normally sends:
-     * YYYY-MM-DDTHH:mm
-     *
-     * We convert it explicitly to:
-     * YYYY-MM-DDTHH:mm:00
-     */
-    const normalizedScheduledAt =
-      scheduledAt.length === 16
-        ? `${scheduledAt}:00`
-        : scheduledAt;
-
-    const scheduledDate = new Date(normalizedScheduledAt);
+    // Require a timezone-aware ISO date so a server's timezone cannot shift
+    // the interview time selected by the interviewer.
+    const scheduledDate = new Date(scheduledAt);
 
     if (!Number.isFinite(scheduledDate.getTime())) {
       return NextResponse.json(
         {
-          error: `Invalid interview date: ${scheduledAt}`,
+          error: "Invalid interview date. Please select a valid date and time.",
         },
         { status: 400 }
       );
