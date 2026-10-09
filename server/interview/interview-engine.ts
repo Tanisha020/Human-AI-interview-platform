@@ -209,7 +209,9 @@ export function transitionInterview(
         state: "AI_TURN",
         currentSpeaker: "AI",
         aiStatus: "SPEAKING",
-        questionNumber: current.questionNumber + 1,
+        // If RESET_QUESTION already cleared the active question, keep the same
+        // number so Next Question replaces the cleared slot instead of skipping it.
+        questionNumber: current.questionNumber + (current.currentQuestion ? 1 : 0),
       });
     }
 
@@ -218,7 +220,14 @@ export function transitionInterview(
 
       // Stop an active AI utterance and return to listening. If a human has
       // taken over, keep the human turn paused and active.
-      if (current.state === "AI_TURN" || current.state === "AI_FOLLOW_UP") {
+      // Reset is also valid while an answer is being analyzed. The socket
+      // layer invalidates the pending analysis/generation before this transition.
+      // Keep human takeover intact; otherwise return to a ready/listening state.
+      if (
+        current.state === "AI_TURN" ||
+        current.state === "AI_FOLLOW_UP" ||
+        current.state === "AI_ANALYZING"
+      ) {
         return updateState(roomId, {
           currentQuestion: null,
           state: "AI_LISTENING",
