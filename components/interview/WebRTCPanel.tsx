@@ -546,17 +546,23 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
     }
 
     function handleQuestionReset() {
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      if (isInterviewer && typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
-      try {
-        speechRecognitionRef.current?.abort();
-      } catch {
-        // The recognition session may already have stopped.
+
+      // Clear the candidate's draft answer when the interviewer resets the
+      // active question, but don't interrupt an interviewer's human-turn STT.
+      if (userRole === "CANDIDATE") {
+        try {
+          speechRecognitionRef.current?.abort();
+        } catch {
+          // The recognition session may already have stopped.
+        }
+        setIsListening(false);
+        setAnswerText("");
       }
-      setIsListening(false);
+
       setInterimText("");
-      setAnswerText("");
       setInterviewState((previous) => ({
         ...previous,
         currentQuestion: null,
