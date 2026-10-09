@@ -37,7 +37,7 @@ async function callOllama(prompt: string): Promise<string> {
       keep_alive: "10m",
       options: {
         temperature: 0.2,
-        num_predict: 320,
+        num_predict: 220,
       },
     }),
   });
