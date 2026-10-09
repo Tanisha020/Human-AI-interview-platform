@@ -251,6 +251,13 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
         setAiVoiceEnabled(true);
         setError("");
         console.log("AI voice enabled successfully.");
+
+        // If the interviewer enables voice after the intro question has
+        // already arrived, speak that active question once now.
+        const activeQuestion = interviewState.currentQuestion;
+        if (activeQuestion) {
+          window.setTimeout(() => speakAIQuestion(activeQuestion), 100);
+        }
       };
 
       testUtterance.onerror = (event) => {
