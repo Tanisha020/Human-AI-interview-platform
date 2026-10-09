@@ -1237,6 +1237,10 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
     recognition.onend = () => {
       setIsListening(false);
       setInterimText("");
+      const activeSocket = socketRef.current;
+      if (activeSocket?.connected) {
+        activeSocket.emit("transcript:interim", { roomId, text: "" });
+      }
       if (recognitionRestartTimerRef.current !== null) {
         window.clearTimeout(recognitionRestartTimerRef.current);
         recognitionRestartTimerRef.current = null;
@@ -1324,6 +1328,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
       return;
     }
 
+    socket.emit("transcript:interim", { roomId, text: "" });
     socket.emit("candidate:answer", {
       roomId,
       text: answer,
