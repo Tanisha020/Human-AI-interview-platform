@@ -573,14 +573,25 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
       );
     }
 
+    function handleAIStop() {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    }
+
     function handleQuestionReset() {
       if (isInterviewer && typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
 
-      // Clear the candidate's draft answer when the interviewer resets the
-      // active question, but don't interrupt an interviewer's human-turn STT.
+      // Reset must stop candidate capture too, otherwise the browser's
+      // auto-restart can keep appending speech to an answer for a cleared question.
       if (userRole === "CANDIDATE") {
+        shouldKeepListeningRef.current = false;
+        if (recognitionRestartTimerRef.current !== null) {
+          window.clearTimeout(recognitionRestartTimerRef.current);
+          recognitionRestartTimerRef.current = null;
+        }
         try {
           speechRecognitionRef.current?.abort();
         } catch {
@@ -743,6 +754,8 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
 
     socket.on("ai:question", handleAIQuestion);
 
+    socket.on("ai:stop", handleAIStop);
+
     socket.on("question:reset", handleQuestionReset);
 
     socket.on("transcript:update", handleTranscript);
@@ -777,6 +790,8 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
       socket.off("interview:state", handleInterviewState);
 
       socket.off("ai:question", handleAIQuestion);
+
+      socket.off("ai:stop", handleAIStop);
 
       socket.off("question:reset", handleQuestionReset);
 
@@ -1694,6 +1709,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
                   onClick={() => {
                     socketRef.current?.emit("interview:start", roomId);
                   }}
+                  disabled={interviewState.state !== "WAITING"}
                   className="col-span-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-3 py-3 text-xs font-semibold text-white shadow-lg shadow-emerald-950/30 transition hover:from-emerald-500 hover:to-emerald-400"
                 >
                   <Sparkles size={14} />
@@ -1737,7 +1753,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
                 <button
                   type="button"
                   onClick={() => sendAIControl("NEXT_QUESTION")}
-                  disabled={interviewState.state === "WAITING" || interviewState.state === "COMPLETED" || interviewState.aiPausedByHuman}
+                  disabled={interviewState.state === "WAITING" || interviewState.state === "COMPLETED" || interviewState.state === "AI_ANALYZING" || interviewState.state === "HUMAN_TURN" || interviewState.state === "PAUSED_BY_HUMAN" || interviewState.aiPausedByHuman}
                   className="rounded-lg bg-blue-600 px-3 py-2.5 text-xs font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Next question
