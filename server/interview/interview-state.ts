@@ -36,6 +36,7 @@ export type InterviewEvent =
   | "PAUSE_AI"
   | "RESUME_AI"
   | "NEXT_QUESTION"
+  | "RESET_QUESTION"
   | "END_INTERVIEW";
 
 export type InterviewStateData = {
