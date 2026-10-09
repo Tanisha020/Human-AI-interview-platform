@@ -182,6 +182,14 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
     aiPausedByHuman: false,
   });
 
+  function setAIStatus(status: AIStatus) {
+    setInterviewState((previous) => ({
+      ...previous,
+      aiStatus: status,
+      updatedAt: new Date().toISOString(),
+    }));
+  }
+
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
 
   const [elapsedTime, setElapsedTime] = useState("00:00");
@@ -190,7 +198,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
 
   const [isListening, setIsListening] = useState(false);
   const [aiVoiceEnabled, setAiVoiceEnabled] = useState(false);
-
+  const aiVoiceEnabledRef = useRef(false);
   const [speechSupported, setSpeechSupported] = useState(true);
 
   const [interimText, setInterimText] = useState("");
@@ -234,10 +242,9 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
       testUtterance.volume = 0.01;
 
       testUtterance.onend = () => {
+        aiVoiceEnabledRef.current = true;
         setAiVoiceEnabled(true);
-
         setError("");
-
         console.log("AI voice enabled successfully.");
       };
 
@@ -268,10 +275,10 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
       return;
     }
 
-    if (!aiVoiceEnabled) {
-  setAIStatus("LISTENING");
-  return;
-}
+    if (!aiVoiceEnabledRef.current) {
+      setAIStatus("LISTENING");
+      return;
+    }
 
     try {
       window.speechSynthesis.cancel();
@@ -1371,6 +1378,14 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
               <div className="rounded-lg bg-white/[0.04] px-2.5 py-1.5 text-[10px] font-medium text-slate-500">
                 Q{interviewState.questionNumber || 1}
               </div>
+              <button
+                type="button"
+                onClick={enableAIVoice}
+                disabled={aiVoiceEnabled}
+                className="mt-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-default disabled:opacity-60"
+              >
+                {aiVoiceEnabled ? "AI Voice Enabled" : "Enable AI Voice"}
+              </button>
             </div>
           </div>
 
