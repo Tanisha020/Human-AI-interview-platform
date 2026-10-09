@@ -545,6 +545,24 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
       setTranscript((previous) => [...previous, data].slice(-150));
     }
 
+    function handleQuestionReset() {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+      try {
+        speechRecognitionRef.current?.abort();
+      } catch {
+        // The recognition session may already have stopped.
+      }
+      setIsListening(false);
+      setInterimText("");
+      setAnswerText("");
+      setInterviewState((previous) => ({
+        ...previous,
+        currentQuestion: null,
+      }));
+    }
+
     function handleExistingPeer(data: {
       socketId: string;
       name?: string;
@@ -690,6 +708,8 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
 
     socket.on("ai:question", handleAIQuestion);
 
+    socket.on("question:reset", handleQuestionReset);
+
     socket.on("transcript:update", handleTranscript);
 
     socket.on("existing-peer", handleExistingPeer);
@@ -720,6 +740,8 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
       socket.off("interview:state", handleInterviewState);
 
       socket.off("ai:question", handleAIQuestion);
+
+      socket.off("question:reset", handleQuestionReset);
 
       socket.off("transcript:update", handleTranscript);
 
@@ -1623,7 +1645,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
                 <button
                   type="button"
                   onClick={() => sendAIControl("RESET_QUESTION")}
-                  disabled={!interviewState.currentQuestion || interviewState.state === "COMPLETED"}
+                  disabled={!interviewState.currentQuestion || interviewState.state === "COMPLETED" || interviewState.state === "AI_ANALYZING"}
                   title="Clear the active question without deleting interview history"
                   className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200 transition hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-40"
                 >
