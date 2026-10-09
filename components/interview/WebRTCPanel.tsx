@@ -258,6 +258,19 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
 
   const isInterviewer = userRole === "INTERVIEWER" || userRole === "ADMIN";
 
+  function toggleAIVoice() {
+    if (aiVoiceEnabledRef.current) {
+      aiVoiceEnabledRef.current = false;
+      setAiVoiceEnabled(false);
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+      setAIStatus("LISTENING");
+      return;
+    }
+    enableAIVoice();
+  }
+
   function enableAIVoice() {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
       setError("Your browser does not support AI voice.");
@@ -1022,6 +1035,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
 
     audioTracks.forEach((track) => {
       track.enabled = false;
+      track.stop();
     });
 
     setMicOn(false);
@@ -1041,6 +1055,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
 
     videoTracks.forEach((track) => {
       track.enabled = false;
+      track.stop();
     });
 
     setCameraOn(false);
@@ -1419,6 +1434,19 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
   // =====================================================
 
   function leaveInterview() {
+    shouldKeepListeningRef.current = false;
+    if (recognitionRestartTimerRef.current !== null) {
+      window.clearTimeout(recognitionRestartTimerRef.current);
+      recognitionRestartTimerRef.current = null;
+    }
+    try {
+      speechRecognitionRef.current?.abort();
+    } catch {
+      // Speech recognition may already be stopped.
+    }
+    screenTrackRef.current?.stop();
+    screenTrackRef.current = null;
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
     localStreamRef.current?.getTracks().forEach((track) => {
       track.stop();
     });
@@ -1650,11 +1678,10 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
               {isInterviewer && (
                 <button
                   type="button"
-                  onClick={enableAIVoice}
-                  disabled={aiVoiceEnabled}
+                  onClick={toggleAIVoice}
                   className="mt-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-default disabled:opacity-60"
                 >
-                  {aiVoiceEnabled ? "AI Voice Enabled" : "Enable AI Voice"}
+                  {aiVoiceEnabled ? "Disable AI Voice" : "Enable AI Voice"}
                 </button>
               )}
             </div>
