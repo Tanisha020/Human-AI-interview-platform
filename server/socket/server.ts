@@ -1042,6 +1042,23 @@ socket.on(
   // DISCONNECT
   // =======================================================
 
+  // Notify the remaining participant immediately when a browser closes or
+  // loses its connection, rather than leaving stale peer/count UI behind.
+  socket.on("disconnecting", () => {
+    for (const roomId of socket.rooms) {
+      if (roomId === socket.id) continue;
+
+      socket.to(roomId).emit("peer-left", { socketId: socket.id });
+      const roomSize = io.sockets.adapter.rooms.get(roomId)?.size ?? 1;
+      const remainingCount = Math.max(0, roomSize - 1);
+      socket.to(roomId).emit("room-participants", { count: remainingCount });
+
+      if (remainingCount === 0) {
+        interviewConversations.delete(roomId);
+      }
+    }
+  });
+
   socket.on("disconnect", () => {
     console.log(`Socket disconnected: ${socket.id}`);
   });
