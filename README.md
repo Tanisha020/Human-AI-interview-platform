@@ -122,6 +122,6 @@ Open [http://localhost:3000/api/health](http://localhost:3000/api/health). It re
 
 ## Validation status
 
-GitHub Actions is configured to run the state-machine tests, TypeScript check, and ESLint on pushes and pull requests. The application still needs a real local regression using two browser windows to verify microphone permissions, transcript synchronization, WebRTC, Ollama responses, database writes, and final report behavior. Do not treat a successful static check as proof of the full real-time flow.
+GitHub Actions is temporarily manual-only while CI is being stabilized, so code pushes do not trigger repeated failure notifications. Run **Actions → Quality checks → Run workflow** when you want to validate the state-machine tests, TypeScript check, and ESLint. The application still needs a real local regression using two browser windows to verify microphone permissions, transcript synchronization, WebRTC, Ollama responses, database writes, and final report behavior. Do not treat a successful static check as proof of the full real-time flow.
 
 See [PROJECT_ROADMAP.md](./PROJECT_ROADMAP.md) for phase status and the remaining work.
