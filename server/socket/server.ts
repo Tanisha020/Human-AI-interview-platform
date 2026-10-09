@@ -634,6 +634,19 @@ socket.on(
         // REAL AI ANALYSIS
         const analysis = await analyzeCandidateAnswer(context, answer);
 
+        // If the interviewer reset the question or took over while the model
+        // was evaluating, discard this stale result instead of changing turns.
+        const latestStateAfterAnalysis = getInterviewState(roomId);
+        if (
+          latestStateAfterAnalysis.state === "COMPLETED" ||
+          latestStateAfterAnalysis.state === "HUMAN_TURN" ||
+          latestStateAfterAnalysis.state === "PAUSED_BY_HUMAN" ||
+          latestStateAfterAnalysis.aiPausedByHuman ||
+          latestStateAfterAnalysis.currentQuestion !== answeredQuestion
+        ) {
+          return;
+        }
+
         console.log(`AI score: ${analysis.score}/10`);
 
         console.log(`AI feedback: ${analysis.feedback}`);
