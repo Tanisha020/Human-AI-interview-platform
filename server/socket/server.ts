@@ -756,8 +756,10 @@ socket.on(
           // A reset/takeover may occur while the database write is pending.
           const latestAfterFollowUpSave = getInterviewState(roomId);
           if (
-            latestAfterFollowUpSave.currentQuestion !== answeredQuestion ||
+            latestAfterFollowUpSave.currentQuestion !== followUp ||
             latestAfterFollowUpSave.state === "COMPLETED" ||
+            latestAfterFollowUpSave.state === "HUMAN_TURN" ||
+            latestAfterFollowUpSave.state === "PAUSED_BY_HUMAN" ||
             latestAfterFollowUpSave.aiPausedByHuman
           ) {
             return;
