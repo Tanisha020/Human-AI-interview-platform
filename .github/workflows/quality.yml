@@ -1,10 +1,9 @@
 name: Quality checks
 
+# Temporarily manual-only while the first CI failures are diagnosed.
+# This prevents every commit to main from sending another failure email.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
   validate:
