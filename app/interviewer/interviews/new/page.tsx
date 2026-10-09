@@ -24,7 +24,7 @@ export default function CreateInterviewPage() {
       return;
     }
 
-     setLoading(true);
+    setLoading(true);
 
     try {
       const response = await fetch("/api/interviews", {
@@ -47,7 +47,7 @@ export default function CreateInterviewPage() {
 
       const data = await response.json();
 
-       if (!response.ok) {
+      if (!response.ok) {
         alert(data.error ?? "Failed to create interview.");
         return;
       }
