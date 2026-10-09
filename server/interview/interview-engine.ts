@@ -217,8 +217,18 @@ export function transitionInterview(
     case "RESET_QUESTION": {
       if (current.state === "WAITING") return current;
 
-      // Clear only the active question. Historical transcript/database
-      // records are deliberately retained for audit and report generation.
+      // Stop an active AI utterance and return to listening. If a human has
+      // taken over, keep the human turn paused and active.
+      if (current.state === "AI_TURN" || current.state === "AI_FOLLOW_UP") {
+        return updateState(roomId, {
+          currentQuestion: null,
+          state: "AI_LISTENING",
+          currentSpeaker: "CANDIDATE",
+          aiStatus: "LISTENING",
+        });
+      }
+
+      // Historical transcript/database records remain available for reports.
       return updateState(roomId, {
         currentQuestion: null,
       });
