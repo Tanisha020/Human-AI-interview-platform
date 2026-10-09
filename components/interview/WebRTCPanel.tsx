@@ -119,6 +119,19 @@ function formatElapsedTime(startedAt: string | null) {
   )}:${String(seconds).padStart(2, "0")}`;
 }
 
+function ElapsedTimer({ startedAt }: { startedAt: string | null }) {
+  const [elapsedTime, setElapsedTime] = useState(() => formatElapsedTime(startedAt));
+
+  useEffect(() => {
+    const update = () => setElapsedTime(formatElapsedTime(startedAt));
+    update();
+    const interval = window.setInterval(update, 1000);
+    return () => window.clearInterval(interval);
+  }, [startedAt]);
+
+  return <>{elapsedTime}</>;
+}
+
 function getAIStatusLabel(status: AIStatus) {
   switch (status) {
     case "SPEAKING":
@@ -192,8 +205,6 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
 
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
 
-  const [elapsedTime, setElapsedTime] = useState("00:00");
-
   const [answerText, setAnswerText] = useState("");
 
   const [isListening, setIsListening] = useState(false);
@@ -206,20 +217,6 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
   const speechRecognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
   const isInterviewer = userRole === "INTERVIEWER" || userRole === "ADMIN";
-
-  // =====================================================
-  // TIMER
-  // =====================================================
-
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      setElapsedTime(formatElapsedTime(interviewState.startedAt));
-    }, 1000);
-
-    return () => {
-      window.clearInterval(interval);
-    };
-  }, [interviewState.startedAt]);
 
   function enableAIVoice() {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
@@ -329,18 +326,18 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
   function handleAIQuestion(data: { question: string }) {
     const question = data.question.trim();
 
-    if (!question) {
-      return;
-    }
+    if (!question) return;
 
     setInterviewState((previous) => ({
       ...previous,
       currentQuestion: question,
-      aiStatus: "SPEAKING",
-      currentSpeaker: "AI",
     }));
 
-    speakAIQuestion(question);
+    // AI speech is controlled by the interviewer only. Candidates still
+    // receive the question and state over Socket.IO.
+    if (isInterviewer) {
+      speakAIQuestion(question);
+    }
   }
 
   // =====================================================
@@ -544,7 +541,8 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
     }
 
     function handleTranscript(data: TranscriptItem) {
-      setTranscript((previous) => [...previous, data]);
+      // Keep the live UI responsive during long interviews.
+      setTranscript((previous) => [...previous, data].slice(-150));
     }
 
     function handleExistingPeer(data: {
@@ -1170,6 +1168,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
       | "NEXT_QUESTION"
       | "HUMAN_TAKEOVER"
       | "HUMAN_FINISHED"
+      | "RESET_QUESTION"
       | "END_INTERVIEW",
   ) {
     socketRef.current?.emit("ai-control", {
@@ -1266,7 +1265,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
 
           <div className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs text-slate-300">
             <Clock3 size={14} />
-            {elapsedTime}
+            <ElapsedTimer startedAt={interviewState.startedAt} />
           </div>
         </div>
       </header>
@@ -1411,14 +1410,16 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
               <div className="rounded-lg bg-white/[0.04] px-2.5 py-1.5 text-[10px] font-medium text-slate-500">
                 Q{interviewState.questionNumber || 1}
               </div>
-              <button
-                type="button"
-                onClick={enableAIVoice}
-                disabled={aiVoiceEnabled}
-                className="mt-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-default disabled:opacity-60"
-              >
-                {aiVoiceEnabled ? "AI Voice Enabled" : "Enable AI Voice"}
-              </button>
+              {isInterviewer && (
+                <button
+                  type="button"
+                  onClick={enableAIVoice}
+                  disabled={aiVoiceEnabled}
+                  className="mt-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-default disabled:opacity-60"
+                >
+                  {aiVoiceEnabled ? "AI Voice Enabled" : "Enable AI Voice"}
+                </button>
+              )}
             </div>
           </div>
 
@@ -1596,54 +1597,61 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
                   Start AI Interview
                 </button>
 
-                {/* PAUSE AI */}
-
-                <button
-                  type="button"
-                  onClick={() => sendAIControl("PAUSE")}
-                  className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2.5 text-xs text-slate-300 transition hover:bg-white/[0.08]"
-                >
-                  Pause AI
-                </button>
-
-                {/* RESUME AI */}
-
-                <button
-                  type="button"
-                  onClick={() => sendAIControl("RESUME")}
-                  className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2.5 text-xs text-slate-300 transition hover:bg-white/[0.08]"
-                >
-                  Resume AI
-                </button>
-
-                {/* HUMAN TAKEOVER */}
-
+                {/* HUMAN TAKEOVER: pauses AI and starts the human interviewer's turn */}
                 <button
                   type="button"
                   onClick={() => sendAIControl("HUMAN_TAKEOVER")}
-                  className="rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-2.5 text-xs text-blue-300 transition hover:bg-blue-500/15"
+                  disabled={interviewState.state === "WAITING" || interviewState.state === "COMPLETED" || interviewState.state === "HUMAN_TURN"}
+                  title="Pause the AI and ask your own questions"
+                  className="rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-2.5 text-xs text-blue-300 transition hover:bg-blue-500/15 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Take over
+                  Start human turn
                 </button>
 
-                {/* HUMAN FINISHED */}
-
+                {/* FINISH TURN: hand control back to AI */}
                 <button
                   type="button"
                   onClick={() => sendAIControl("HUMAN_FINISHED")}
-                  className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2.5 text-xs text-slate-300 transition hover:bg-white/[0.08]"
+                  disabled={interviewState.state !== "HUMAN_TURN" && interviewState.state !== "PAUSED_BY_HUMAN"}
+                  title="Finish your turn and return control to the AI"
+                  className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2.5 text-xs text-slate-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Finish turn
+                  Return to AI
+                </button>
+
+                {/* RESET ACTIVE QUESTION */}
+                <button
+                  type="button"
+                  onClick={() => sendAIControl("RESET_QUESTION")}
+                  disabled={!interviewState.currentQuestion || interviewState.state === "COMPLETED"}
+                  title="Clear the active question without deleting interview history"
+                  className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200 transition hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Reset question
                 </button>
 
                 {/* NEXT QUESTION */}
-
                 <button
                   type="button"
                   onClick={() => sendAIControl("NEXT_QUESTION")}
-                  className="col-span-2 rounded-lg bg-blue-600 px-3 py-2.5 text-xs font-medium text-white transition hover:bg-blue-500"
+                  disabled={interviewState.state === "WAITING" || interviewState.state === "COMPLETED" || interviewState.aiPausedByHuman}
+                  className="rounded-lg bg-blue-600 px-3 py-2.5 text-xs font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Next question
+                </button>
+
+                {/* END INTERVIEW */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm("End this interview? The current session will be marked completed.")) {
+                      sendAIControl("END_INTERVIEW");
+                    }
+                  }}
+                  disabled={interviewState.state === "WAITING" || interviewState.state === "COMPLETED"}
+                  className="col-span-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2.5 text-xs font-medium text-red-200 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  End interview
                 </button>
               </div>
             </div>
