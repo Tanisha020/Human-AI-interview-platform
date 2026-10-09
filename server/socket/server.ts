@@ -50,7 +50,17 @@ type ConversationMessage = {
 
 const interviewConversations = new Map<string, ConversationMessage[]>();
 const questionGenerationVersion = new Map<string, number>();
-const followUpQuestionTexts = new Set<string>();
+const followUpQuestionTexts = new Map<string, Set<string>>();
+
+function hasAskedFollowUp(roomId: string, question: string): boolean {
+  return followUpQuestionTexts.get(roomId)?.has(question) ?? false;
+}
+
+function markFollowUp(roomId: string, question: string): void {
+  const questions = followUpQuestionTexts.get(roomId) ?? new Set<string>();
+  questions.add(question);
+  followUpQuestionTexts.set(roomId, questions);
+}
 
 function invalidatePendingQuestion(roomId: string) {
   questionGenerationVersion.set(
@@ -296,6 +306,7 @@ io.on("connection", (socket) => {
 
       // Reset conversation for this interview
       interviewConversations.set(roomId, []);
+      followUpQuestionTexts.delete(roomId);
 
       // Start with a fixed introduction question.
       // Do not let the AI jump directly into projects or technical questions.
@@ -572,6 +583,13 @@ socket.on(
         // segments. Only add/emit the submitted answer when no live candidate
         // transcript was received (for example, when the answer was typed).
         const answeredQuestion = getInterviewState(roomId).currentQuestion;
+        const currentState = getInterviewState(roomId);
+        if (currentState.state === "HUMAN_TURN" || currentState.state === "PAUSED_BY_HUMAN") {
+          io.to(roomId).emit("ai:error", {
+            message: "The human interviewer has the turn. Use the live transcript, then select Return to AI.",
+          });
+          return;
+        }
         const answerAlreadyTranscribed =
           hasCandidateTranscriptSinceLastAI(roomId);
 
@@ -624,10 +642,10 @@ socket.on(
           analysis.shouldFollowUp &&
           analysis.followUpQuestion &&
           answeredQuestion &&
-          !followUpQuestionTexts.has(answeredQuestion)
+          !hasAskedFollowUp(roomId, answeredQuestion)
         ) {
           const followUp = analysis.followUpQuestion.trim();
-          followUpQuestionTexts.add(followUp);
+          markFollowUp(roomId, followUp);
 
           state = transitionInterview(roomId, "AI_FOLLOW_UP");
 
