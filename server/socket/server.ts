@@ -406,6 +406,20 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Mark the AI question as delivered so every participant sees the listening state.
+  socket.on("ai:finished-speaking", (data: { roomId: string }) => {
+    if (
+      !data?.roomId ||
+      !socket.rooms.has(data.roomId) ||
+      (socket.data.role !== "INTERVIEWER" && socket.data.role !== "ADMIN")
+    ) {
+      return;
+    }
+
+    const state = transitionInterview(data.roomId, "AI_FINISHED_SPEAKING");
+    io.to(data.roomId).emit("interview:state", state);
+  });
+
   // =======================================================
   // AI / HUMAN CONTROL
   // =======================================================
