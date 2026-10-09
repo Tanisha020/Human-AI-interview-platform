@@ -95,27 +95,37 @@ function addConversationMessage(roomId: string, message: ConversationMessage) {
 }
 
 /**
- * Live speech recognition sends candidate transcript segments before the
- * candidate presses Submit. If such segments exist after the most recent AI
- * question, do not add the submitted answer to the transcript a second time.
- * The submitted answer is still passed in full to the AI evaluator.
+ * Live speech recognition may have added several partial-final candidate
+ * segments before Submit is clicked. Replace those segments with the complete
+ * submitted answer in AI memory so typed additions are not lost or duplicated.
  */
-function hasCandidateTranscriptSinceLastAI(roomId: string): boolean {
+function consolidateCandidateAnswer(roomId: string, answer: string): boolean {
   const conversation = getConversation(roomId);
+  let lastAIIndex = -1;
 
   for (let index = conversation.length - 1; index >= 0; index -= 1) {
-    const message = conversation[index];
-
-    if (message.speaker === "AI") {
-      return false;
-    }
-
-    if (message.speaker === "CANDIDATE") {
-      return true;
+    if (conversation[index].speaker === "AI") {
+      lastAIIndex = index;
+      break;
     }
   }
 
-  return false;
+  const firstCandidateIndex = conversation.findIndex(
+    (message, index) => index > lastAIIndex && message.speaker === "CANDIDATE",
+  );
+  if (firstCandidateIndex < 0) return false;
+
+  for (let index = conversation.length - 1; index > lastAIIndex; index -= 1) {
+    if (conversation[index].speaker === "CANDIDATE") {
+      conversation.splice(index, 1);
+    }
+  }
+
+  conversation.splice(lastAIIndex + 1, 0, {
+    speaker: "CANDIDATE",
+    text: answer,
+  });
+  return true;
 }
 
 // =========================================================
@@ -676,7 +686,7 @@ socket.on(
         // Speech recognition already sent candidate transcript segments.
         // Avoid duplicating those segments when the answer is submitted.
         const answerAlreadyTranscribed =
-          hasCandidateTranscriptSinceLastAI(roomId);
+          consolidateCandidateAnswer(roomId, answer);
 
         if (!answerAlreadyTranscribed) {
           addConversationMessage(roomId, {
