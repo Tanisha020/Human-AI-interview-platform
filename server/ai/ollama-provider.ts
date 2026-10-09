@@ -98,6 +98,12 @@ function buildConversation(
     .join("\n");
 }
 
+function clampScore(value: unknown, fallback: number): number {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(0, Math.min(10, Math.round(numeric)));
+}
+
 export class OllamaProvider implements AIProvider {
   async generateQuestion(
     context: InterviewContext
@@ -217,7 +223,16 @@ Evaluate:
 - depth
 - problem solving
 
-Give a score from 0 to 10.
+Give an overall score from 0 to 10 and separate scores from 0 to 10 for:
+- technicalKnowledge
+- problemSolving
+- communication
+- relevance
+- confidence
+- behavioral
+- jobSkills
+
+Score only evidence in the answer. For behavioral, use how clearly the answer demonstrates a relevant behavior; if the question is technical and behavioral evidence is not applicable, use the overall score rather than penalizing the candidate.
 
 Decide whether a follow-up question would be useful.
 
@@ -230,6 +245,13 @@ Return ONLY valid JSON:
   "strengths": [],
   "weaknesses": [],
   "feedback": "string",
+  "technicalKnowledge": 0,
+  "problemSolving": 0,
+  "communication": 0,
+  "relevance": 0,
+  "confidence": 0,
+  "behavioral": 0,
+  "jobSkills": 0,
   "shouldFollowUp": true,
   "followUpQuestion": "string"
 }
