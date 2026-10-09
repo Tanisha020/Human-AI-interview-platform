@@ -79,6 +79,14 @@ type TranscriptItem = {
   timestamp: string;
 };
 
+type FinalInterviewReport = {
+  overallScore: number | null;
+  summary: string | null;
+  strengths: string | null;
+  weaknesses: string | null;
+  recommendation: string | null;
+};
+
 type InterimTranscript = {
   speaker: string;
   text: string;
@@ -200,6 +208,9 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
   });
   const [humanEvaluationMessage, setHumanEvaluationMessage] = useState("");
   const [savingHumanEvaluation, setSavingHumanEvaluation] = useState(false);
+  const [finalReport, setFinalReport] = useState<FinalInterviewReport | null>(null);
+  const [loadingReport, setLoadingReport] = useState(false);
+  const [reportMessage, setReportMessage] = useState("");
 
   const [participantCount, setParticipantCount] = useState(1);
 
@@ -1341,6 +1352,26 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
     });
   }
 
+  async function loadFinalReport() {
+    setLoadingReport(true);
+    setReportMessage("");
+    try {
+      const response = await fetch(`/api/interviews/${encodeURIComponent(roomId)}/report`);
+      const result = (await response.json()) as {
+        error?: string;
+        report?: FinalInterviewReport;
+      };
+      if (!response.ok || !result.report) {
+        throw new Error(result.error || "Final report is not available yet.");
+      }
+      setFinalReport(result.report);
+    } catch (reportError) {
+      setReportMessage(reportError instanceof Error ? reportError.message : "Could not load the report.");
+    } finally {
+      setLoadingReport(false);
+    }
+  }
+
   async function submitHumanEvaluation() {
     setSavingHumanEvaluation(true);
     setHumanEvaluationMessage("");
@@ -1355,6 +1386,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
         throw new Error(result.error || "Could not save the human evaluation.");
       }
       setHumanEvaluationMessage("Human evaluation saved.");
+      await loadFinalReport();
     } catch (evaluationError) {
       setHumanEvaluationMessage(
         evaluationError instanceof Error ? evaluationError.message : "Could not save the human evaluation."
@@ -1922,6 +1954,34 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
                 )}
               </div>
             </div>
+          )}
+
+          {interviewState.state === "COMPLETED" && (
+            <section className="border-t border-white/[0.08] p-4">
+              <button
+                type="button"
+                onClick={() => void loadFinalReport()}
+                disabled={loadingReport}
+                className="w-full rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/15 disabled:opacity-50"
+              >
+                {loadingReport ? "Loading report…" : finalReport ? "Refresh final report" : "View final report"}
+              </button>
+              {reportMessage && <p className="mt-2 text-[10px] text-amber-200">{reportMessage}</p>}
+              {finalReport && (
+                <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-xs font-semibold text-slate-100">Final interview report</h3>
+                    <span className="rounded-md bg-blue-500/10 px-2 py-1 text-xs font-semibold text-blue-200">
+                      {finalReport.overallScore === null ? "Not scored" : `${finalReport.overallScore}/10`}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs font-medium text-emerald-200">{finalReport.recommendation || "Report generated"}</p>
+                  {finalReport.summary && <p className="mt-2 whitespace-pre-line text-[11px] leading-5 text-slate-300">{finalReport.summary}</p>}
+                  {finalReport.strengths && <p className="mt-3 whitespace-pre-line text-[11px] leading-5 text-slate-300"><span className="font-semibold text-emerald-200">Strengths: </span>{finalReport.strengths}</p>}
+                  {finalReport.weaknesses && <p className="mt-2 whitespace-pre-line text-[11px] leading-5 text-slate-300"><span className="font-semibold text-amber-200">Areas to improve: </span>{finalReport.weaknesses}</p>}
+                </div>
+              )}
+            </section>
           )}
         </aside>
       </div>
