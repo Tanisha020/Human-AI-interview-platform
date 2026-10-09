@@ -385,10 +385,14 @@ io.on("connection", (socket) => {
         // This prevents the next generated question from treating a reset
         // question as completed or repeatedly circling back to it.
         if (activeQuestion) {
-          const questionIndex = conversation.findLastIndex(
-            (message) =>
-              message.speaker === "AI" && message.text === activeQuestion,
-          );
+          let questionIndex = -1;
+          for (let index = conversation.length - 1; index >= 0; index -= 1) {
+            const message = conversation[index];
+            if (message.speaker === "AI" && message.text === activeQuestion) {
+              questionIndex = index;
+              break;
+            }
+          }
           if (questionIndex >= 0) {
             conversation.splice(questionIndex);
           }
