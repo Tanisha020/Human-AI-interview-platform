@@ -136,7 +136,7 @@ async function generateAndSendAIQuestion(roomId: string) {
 
     let state = setCurrentQuestion(roomId, question.question.trim());
 
-    await persistQuestion(roomId, question.question.trim(), question.type);
+    void persistQuestion(roomId, question.question.trim(), question.type);
 
     addConversationMessage(roomId, {
       speaker: "AI",
@@ -250,7 +250,7 @@ io.on("connection", (socket) => {
     }
 
     try {
-      await persistInterviewStatus(roomId, "LIVE");
+      void persistInterviewStatus(roomId, "LIVE");
 
       // WAITING -> INTRODUCTION
       let state = transitionInterview(roomId, "START_INTERVIEW");
@@ -274,7 +274,7 @@ io.on("connection", (socket) => {
 
       state = setCurrentQuestion(roomId, openingQuestion);
 
-      await persistQuestion(roomId, openingQuestion, "INTRODUCTION");
+      void persistQuestion(roomId, openingQuestion, "INTRODUCTION");
 
       addConversationMessage(roomId, {
         speaker: "AI",
@@ -311,6 +311,7 @@ io.on("connection", (socket) => {
         | "NEXT_QUESTION"
         | "HUMAN_TAKEOVER"
         | "HUMAN_FINISHED"
+        | "RESET_QUESTION"
         | "END_INTERVIEW";
     }) => {
       const { roomId, action } = data;
@@ -320,6 +321,35 @@ io.on("connection", (socket) => {
       }
 
       console.log(`AI control: ${action} | room: ${roomId}`);
+
+      if (
+        !socket.rooms.has(roomId) ||
+        (socket.data.role !== "INTERVIEWER" && socket.data.role !== "ADMIN")
+      ) {
+        return;
+      }
+
+      // Reset clears the active question, but retains historical transcript
+      // and database records.
+      if (action === "RESET_QUESTION") {
+        const activeQuestion = getInterviewState(roomId).currentQuestion;
+        const conversation = getConversation(roomId);
+        const lastMessage = conversation[conversation.length - 1];
+
+        // If the question has not been followed by another message, remove it
+        // from short-term AI context so it is not treated as asked.
+        if (
+          activeQuestion &&
+          lastMessage?.speaker === "AI" &&
+          lastMessage.text === activeQuestion
+        ) {
+          conversation.pop();
+        }
+
+        const resetState = transitionInterview(roomId, "RESET_QUESTION");
+        io.to(roomId).emit("interview:state", resetState);
+        return;
+      }
 
       // ---------------------------------------------------
       // NEXT QUESTION
@@ -453,7 +483,7 @@ socket.on(
         // Candidate answered
         let state = transitionInterview(roomId, "CANDIDATE_ANSWER");
 
-        await persistCandidateAnswer(
+        void persistCandidateAnswer(
           roomId,
           answer,
           getInterviewState(roomId).currentQuestion,
@@ -517,7 +547,7 @@ socket.on(
 
           state = setCurrentQuestion(roomId, followUp);
 
-          await persistQuestion(roomId, followUp, "FOLLOW_UP");
+          void persistQuestion(roomId, followUp, "FOLLOW_UP");
 
           addConversationMessage(roomId, {
             speaker: "AI",
@@ -584,7 +614,7 @@ socket.on(
 
       const state = setCurrentQuestion(data.roomId, question);
 
-      await persistQuestion(data.roomId, question, "TECHNICAL");
+      void persistQuestion(data.roomId, question, "TECHNICAL");
 
       addConversationMessage(data.roomId, {
         speaker: "AI",
