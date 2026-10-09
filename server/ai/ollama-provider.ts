@@ -283,6 +283,13 @@ Rules:
         ? analysis.weaknesses
         : [],
       feedback: analysis.feedback || "",
+      technicalKnowledge: clampScore(analysis.technicalKnowledge, Number(analysis.score) || 0),
+      problemSolving: clampScore(analysis.problemSolving, Number(analysis.score) || 0),
+      communication: clampScore(analysis.communication, Number(analysis.score) || 0),
+      relevance: clampScore(analysis.relevance, Number(analysis.score) || 0),
+      confidence: clampScore(analysis.confidence, Number(analysis.score) || 0),
+      behavioral: clampScore(analysis.behavioral, Number(analysis.score) || 0),
+      jobSkills: clampScore(analysis.jobSkills, Number(analysis.score) || 0),
       shouldFollowUp:
         Boolean(analysis.shouldFollowUp) &&
         Boolean(analysis.followUpQuestion),
