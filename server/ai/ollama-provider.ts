@@ -39,8 +39,8 @@ async function callOllama(prompt: string): Promise<string> {
         temperature: 0.2,
         num_predict: 160,
       },
-    signal: AbortSignal.timeout(45000),
     }),
+    signal: AbortSignal.timeout(45000),
   });
 
   if (!response.ok) {
