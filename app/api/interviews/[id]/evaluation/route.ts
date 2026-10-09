@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db/prisma";
+import { persistFinalInterviewReport } from "@/server/persistence/interview-persistence";
 
 const evaluationSchema = z.object({
   technicalKnowledge: z.number().int().min(0).max(10),
@@ -59,6 +60,7 @@ export async function POST(request: Request, context: RouteContext) {
       },
     });
 
+    await persistFinalInterviewReport(interviewId);
     return NextResponse.json({ message: "Human evaluation saved.", evaluation }, { status: 201 });
   } catch (error) {
     console.error("Save human evaluation failed:", error);
