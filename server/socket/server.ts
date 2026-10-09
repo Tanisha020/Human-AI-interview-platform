@@ -63,6 +63,30 @@ function addConversationMessage(roomId: string, message: ConversationMessage) {
   }
 }
 
+/**
+ * Live speech recognition sends candidate transcript segments before the
+ * candidate presses Submit. If such segments exist after the most recent AI
+ * question, do not add the submitted answer to the transcript a second time.
+ * The submitted answer is still passed in full to the AI evaluator.
+ */
+function hasCandidateTranscriptSinceLastAI(roomId: string): boolean {
+  const conversation = getConversation(roomId);
+
+  for (let index = conversation.length - 1; index >= 0; index -= 1) {
+    const message = conversation[index];
+
+    if (message.speaker === "AI") {
+      return false;
+    }
+
+    if (message.speaker === "CANDIDATE") {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 // =========================================================
 // AI CONTEXT
 // =========================================================
@@ -399,22 +423,32 @@ socket.on(
       console.log(`Candidate answer received | room: ${roomId}`);
 
       try {
+        // Only accept answers from a participant who has joined this room.
+        if (!socket.rooms.has(roomId)) {
+          return;
+        }
+
         // Candidate answered
         let state = transitionInterview(roomId, "CANDIDATE_ANSWER");
 
-        // Store candidate answer
-        addConversationMessage(roomId, {
-          speaker: "CANDIDATE",
-          text: answer,
-        });
+        // Speech recognition already sent the candidate's transcript in
+        // segments. Only add/emit the submitted answer when no live candidate
+        // transcript was received (for example, when the answer was typed).
+        const answerAlreadyTranscribed =
+          hasCandidateTranscriptSinceLastAI(roomId);
 
-        // Send candidate answer
-        // to everyone
-        io.to(roomId).emit("transcript:update", {
-          speaker: "CANDIDATE",
-          text: answer,
-          timestamp: new Date().toISOString(),
-        });
+        if (!answerAlreadyTranscribed) {
+          addConversationMessage(roomId, {
+            speaker: "CANDIDATE",
+            text: answer,
+          });
+
+          io.to(roomId).emit("transcript:update", {
+            speaker: "CANDIDATE",
+            text: answer,
+            timestamp: new Date().toISOString(),
+          });
+        }
 
         // Show THINKING state
         io.to(roomId).emit("interview:state", state);
@@ -474,6 +508,11 @@ socket.on(
           // -------------------------------------------------
 
           console.log("Answer complete. Generating next AI question.");
+
+          // Move back to AI_TURN and increment the question number before
+          // generating the next independent question.
+          state = transitionInterview(roomId, "NEXT_QUESTION");
+          io.to(roomId).emit("interview:state", state);
 
           await generateAndSendAIQuestion(roomId);
         }
