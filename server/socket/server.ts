@@ -379,16 +379,19 @@ io.on("connection", (socket) => {
         io.to(roomId).emit("ai:stop", { roomId });
         const activeQuestion = getInterviewState(roomId).currentQuestion;
         const conversation = getConversation(roomId);
-        const lastMessage = conversation[conversation.length - 1];
 
-        // If the question has not been followed by another message, remove it
-        // from short-term AI context so it is not treated as asked.
-        if (
-          activeQuestion &&
-          lastMessage?.speaker === "AI" &&
-          lastMessage.text === activeQuestion
-        ) {
-          conversation.pop();
+        // Remove the active AI question and any short-term answer segments
+        // attached to it. Database history is retained for audit/reporting.
+        // This prevents the next generated question from treating a reset
+        // question as completed or repeatedly circling back to it.
+        if (activeQuestion) {
+          const questionIndex = conversation.findLastIndex(
+            (message) =>
+              message.speaker === "AI" && message.text === activeQuestion,
+          );
+          if (questionIndex >= 0) {
+            conversation.splice(questionIndex);
+          }
         }
 
         const resetState = transitionInterview(roomId, "RESET_QUESTION");
