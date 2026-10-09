@@ -7,7 +7,6 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "prisma skills sync || exit 0",
     "socket": "tsx server/socket/bootstrap.ts",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/interview-engine.test.ts"
