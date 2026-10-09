@@ -423,9 +423,13 @@ io.on("connection", (socket) => {
         | "RESET_QUESTION"
         | "END_INTERVIEW";
     }) => {
+      if (!data || typeof data !== "object") return;
       const { roomId, action } = data;
 
-      if (!roomId || !action) {
+      if (
+        !roomId ||
+        !["PAUSE", "RESUME", "NEXT_QUESTION", "HUMAN_TAKEOVER", "HUMAN_FINISHED", "RESET_QUESTION", "END_INTERVIEW"].includes(action)
+      ) {
         return;
       }
 
@@ -544,7 +548,12 @@ io.on("connection", (socket) => {
 socket.on(
   "transcript:interim",
   (data: { roomId: string; text: string }) => {
-    if (!data?.roomId || typeof data.text !== "string" || !socket.rooms.has(data.roomId)) {
+    if (
+      !data?.roomId ||
+      typeof data.text !== "string" ||
+      data.text.length > 500 ||
+      !socket.rooms.has(data.roomId)
+    ) {
       return;
     }
 
@@ -573,7 +582,8 @@ socket.on(
     if (
       !data?.roomId ||
       typeof data.text !== "string" ||
-      !data.text.trim()
+      !data.text.trim() ||
+      data.text.length > 5000
     ) {
       return;
     }
@@ -632,7 +642,12 @@ socket.on(
   socket.on(
     "candidate:answer",
     async (data: { roomId: string; text: string }) => {
-      if (!data?.roomId || !data.text || !data.text.trim()) {
+      if (
+        !data?.roomId ||
+        typeof data.text !== "string" ||
+        !data.text.trim() ||
+        data.text.length > 10000
+      ) {
         return;
       }
 
@@ -882,6 +897,7 @@ socket.on(
   socket.on(
     "webrtc-offer",
     (data: { targetSocketId: string; offer: RTCSessionDescriptionInit }) => {
+      if (!data || typeof data !== "object") return;
       const { targetSocketId, offer } = data;
 
       const target = targetSocketId ? io.sockets.sockets.get(targetSocketId) : undefined;
@@ -906,6 +922,7 @@ socket.on(
   socket.on(
     "webrtc-answer",
     (data: { targetSocketId: string; answer: RTCSessionDescriptionInit }) => {
+      if (!data || typeof data !== "object") return;
       const { targetSocketId, answer } = data;
 
       const target = targetSocketId ? io.sockets.sockets.get(targetSocketId) : undefined;
@@ -930,6 +947,7 @@ socket.on(
   socket.on(
     "webrtc-ice-candidate",
     (data: { targetSocketId: string; candidate: RTCIceCandidateInit }) => {
+      if (!data || typeof data !== "object") return;
       const { targetSocketId, candidate } = data;
 
       const target = targetSocketId ? io.sockets.sockets.get(targetSocketId) : undefined;
@@ -956,6 +974,7 @@ socket.on(
         !data?.roomId ||
         !data.message ||
         !data.message.trim() ||
+        data.message.length > 2000 ||
         !socket.rooms.has(data.roomId)
       ) {
         return;
@@ -978,7 +997,7 @@ socket.on(
   // =======================================================
 
   socket.on("leave-room", async (roomId: string) => {
-    if (!roomId) {
+    if (!roomId || !socket.rooms.has(roomId)) {
       return;
     }
 
