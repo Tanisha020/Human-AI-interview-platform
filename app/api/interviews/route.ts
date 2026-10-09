@@ -34,11 +34,6 @@ export async function POST(request: Request) {
 
     const body = await request.json();
 
-    console.log("========== API BODY ==========");
-    console.log(body);
-    console.log("scheduledAt received:", body.scheduledAt);
-    console.log("==============================");
-
     const result = createInterviewSchema.safeParse(body);
 
     if (!result.success) {
@@ -75,10 +70,7 @@ export async function POST(request: Request) {
 
     const scheduledDate = new Date(normalizedScheduledAt);
 
-    console.log("Normalized date:", normalizedScheduledAt);
-    console.log("Parsed date:", scheduledDate);
-
-    if (Number.isNaN(scheduledDate.getTime())) {
+    if (!Number.isFinite(scheduledDate.getTime())) {
       return NextResponse.json(
         {
           error: `Invalid interview date: ${scheduledAt}`,
