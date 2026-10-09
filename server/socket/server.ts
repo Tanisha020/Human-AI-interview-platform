@@ -799,7 +799,13 @@ socket.on(
   socket.on(
     "ai:question",
     async (data: { roomId: string; question: string }) => {
-      if (!data?.roomId || !data.question || !data.question.trim()) {
+      if (
+        !data?.roomId ||
+        !data.question ||
+        !data.question.trim() ||
+        !socket.rooms.has(data.roomId) ||
+        (socket.data.role !== "INTERVIEWER" && socket.data.role !== "ADMIN")
+      ) {
         return;
       }
 
