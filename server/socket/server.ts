@@ -1,6 +1,8 @@
 import "dotenv/config";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { prisma } from "../../lib/db/prisma";
+import { verifySocketTicket } from "../../lib/socket-ticket";
 
 import { generateAIQuestion, analyzeCandidateAnswer } from "../ai/ai-service";
 
@@ -37,8 +39,9 @@ type UserRole = "CANDIDATE" | "INTERVIEWER" | "ADMIN";
 
 type JoinRoomData = {
   roomId: string;
-  name: string;
-  role: UserRole;
+  name?: string;
+  role?: UserRole;
+  socketTicket?: string;
 };
 
 type ConversationMessage = {
@@ -211,15 +214,54 @@ io.on("connection", (socket) => {
   // =======================================================
 
   socket.on("join-room", async (data: JoinRoomData) => {
-    if (!data?.roomId) {
+    if (!data?.roomId || !data.socketTicket) {
+      socket.emit("ai:error", { message: "Missing room authentication. Refresh the interview page." });
       return;
     }
 
-    const { roomId, name, role } = data;
+    const claims = verifySocketTicket(data.socketTicket);
+    if (!claims || claims.roomId !== data.roomId) {
+      socket.emit("ai:error", { message: "Room authentication expired or invalid. Refresh the interview page." });
+      return;
+    }
 
-    socket.data.name = name || "Participant";
+    const [user, interview] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: claims.userId },
+        select: { id: true, name: true, role: true },
+      }),
+      prisma.interview.findUnique({
+        where: { id: data.roomId },
+        select: {
+          createdById: true,
+          participants: { select: { userId: true, role: true } },
+        },
+      }),
+    ]);
 
-    socket.data.role = role || "CANDIDATE";
+    if (!user || !interview || user.role !== claims.role) {
+      socket.emit("ai:error", { message: "Your account or interview access could not be verified." });
+      return;
+    }
+
+    const isCreator = interview.createdById === user.id;
+    const isAssignedCandidate = interview.participants.some(
+      (participant) => participant.userId === user.id && participant.role === "CANDIDATE",
+    );
+    const hasRoomAccess =
+      user.role === "ADMIN" ||
+      (user.role === "INTERVIEWER" && isCreator) ||
+      (user.role === "CANDIDATE" && isAssignedCandidate);
+
+    if (!hasRoomAccess) {
+      socket.emit("ai:error", { message: "You are not authorized to join this interview room." });
+      return;
+    }
+
+    const { roomId } = data;
+    socket.data.userId = user.id;
+    socket.data.name = user.name || "Participant";
+    socket.data.role = user.role;
 
     // Get existing participants BEFORE joining
     const room = io.sockets.adapter.rooms.get(roomId);
