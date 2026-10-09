@@ -154,7 +154,6 @@ export function transitionInterview(
         state: "AI_FOLLOW_UP",
         currentSpeaker: "AI",
         aiStatus: "SPEAKING",
-        questionNumber: current.questionNumber + 1,
       });
     }
 
