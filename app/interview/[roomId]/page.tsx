@@ -7,6 +7,7 @@ import {
 } from "next/navigation";
 
 import WebRTCPanel from "@/components/interview/WebRTCPanel";
+import { createSocketTicket } from "@/lib/socket-ticket";
 
 export const instant = false;
 
@@ -79,6 +80,11 @@ export default async function InterviewRoomPage({
   const userName =
     session.user.name ||
     "Participant";
+  const socketTicket = createSocketTicket({
+    userId: session.user.id,
+    role: userRole,
+    roomId: interview.id,
+  });
 
   return (
     <div className="min-h-screen bg-[#070b14]">
@@ -86,6 +92,7 @@ export default async function InterviewRoomPage({
         roomId={interview.id}
         userName={userName}
         userRole={userRole}
+        socketTicket={socketTicket}
       />
     </div>
   );
