@@ -49,6 +49,15 @@ type ConversationMessage = {
 // =========================================================
 
 const interviewConversations = new Map<string, ConversationMessage[]>();
+const questionGenerationVersion = new Map<string, number>();
+const followUpQuestionTexts = new Set<string>();
+
+function invalidatePendingQuestion(roomId: string) {
+  questionGenerationVersion.set(
+    roomId,
+    (questionGenerationVersion.get(roomId) ?? 0) + 1,
+  );
+}
 
 function getConversation(roomId: string): ConversationMessage[] {
   if (!interviewConversations.has(roomId)) {
@@ -123,12 +132,26 @@ function buildAIContext(roomId: string): InterviewContext {
 // =========================================================
 
 async function generateAndSendAIQuestion(roomId: string) {
+  const generationVersion = questionGenerationVersion.get(roomId) ?? 0;
+
   try {
     console.log(`Generating real AI question | room: ${roomId}`);
 
     const context = buildAIContext(roomId);
-
     const question = await generateAIQuestion(context);
+
+    // A reset, human takeover, or end-interview action invalidates this
+    // request. Never let a slow model response overwrite the newer state.
+    const latestState = getInterviewState(roomId);
+    if (
+      generationVersion !== (questionGenerationVersion.get(roomId) ?? 0) ||
+      latestState.state === "COMPLETED" ||
+      latestState.state === "HUMAN_TURN" ||
+      latestState.state === "PAUSED_BY_HUMAN" ||
+      latestState.aiPausedByHuman
+    ) {
+      return null;
+    }
 
     if (!question.question?.trim()) {
       throw new Error("AI returned an empty question.");
@@ -245,10 +268,19 @@ io.on("connection", (socket) => {
 
     console.log(`Starting REAL AI interview: ${roomId}`);
 
-    if (!socket.rooms.has(roomId)) {
+    if (
+      !socket.rooms.has(roomId) ||
+      (socket.data.role !== "INTERVIEWER" && socket.data.role !== "ADMIN")
+    ) {
       return;
     }
 
+    // Prevent duplicate start clicks from replaying the introduction.
+    if (getInterviewState(roomId).state !== "WAITING") {
+      return;
+    }
+
+    invalidatePendingQuestion(roomId);
     try {
       void persistInterviewStatus(roomId, "LIVE");
 
@@ -332,6 +364,8 @@ io.on("connection", (socket) => {
       // Reset clears the active question, but retains historical transcript
       // and database records.
       if (action === "RESET_QUESTION") {
+        invalidatePendingQuestion(roomId);
+        io.to(roomId).emit("ai:stop", { roomId });
         const activeQuestion = getInterviewState(roomId).currentQuestion;
         const conversation = getConversation(roomId);
         const lastMessage = conversation[conversation.length - 1];
@@ -358,8 +392,11 @@ io.on("connection", (socket) => {
 
       if (action === "NEXT_QUESTION") {
         try {
+          invalidatePendingQuestion(roomId);
           const state = transitionInterview(roomId, "NEXT_QUESTION");
+          if (state.state !== "AI_TURN") return;
 
+          io.to(roomId).emit("ai:stop", { roomId });
           io.to(roomId).emit("interview:state", state);
 
           await generateAndSendAIQuestion(roomId);
@@ -382,8 +419,12 @@ io.on("connection", (socket) => {
         END_INTERVIEW: "END_INTERVIEW",
       } as const;
 
-      const event = eventMap[action];
+      if (action === "HUMAN_TAKEOVER" || action === "PAUSE" || action === "END_INTERVIEW") {
+        invalidatePendingQuestion(roomId);
+        io.to(roomId).emit("ai:stop", { roomId });
+      }
 
+      const previousState = getInterviewState(roomId);
       const state = transitionInterview(roomId, event);
 
       if (action === "END_INTERVIEW") {
@@ -391,12 +432,49 @@ io.on("connection", (socket) => {
       }
 
       io.to(roomId).emit("interview:state", state);
+
+      // Returning control to the AI should continue the interview rather than
+      // leave it silently waiting. Generate only after a valid human turn.
+      if (
+        action === "HUMAN_FINISHED" &&
+        previousState.aiPausedByHuman &&
+        state.state === "AI_LISTENING" &&
+        !state.aiPausedByHuman
+      ) {
+        invalidatePendingQuestion(roomId);
+        const nextState = transitionInterview(roomId, "NEXT_QUESTION");
+        io.to(roomId).emit("interview:state", nextState);
+        await generateAndSendAIQuestion(roomId);
+      }
     },
   );
 
 // =======================================================
 // LIVE SPEAKER-LABELLED TRANSCRIPTION
 // =======================================================
+
+socket.on(
+  "transcript:interim",
+  (data: { roomId: string; text: string }) => {
+    if (!data?.roomId || typeof data.text !== "string" || !socket.rooms.has(data.roomId)) {
+      return;
+    }
+
+    const role = socket.data.role;
+    const speaker =
+      role === "CANDIDATE" ? "CANDIDATE" :
+      role === "INTERVIEWER" || role === "ADMIN" ? "HUMAN" : null;
+
+    if (!speaker) return;
+
+    // Interim speech is broadcast but not persisted or added to AI memory.
+    // This keeps the transcript live without writing every partial word to DB.
+    io.to(data.roomId).emit("transcript:interim", {
+      speaker,
+      text: data.text.slice(0, 500),
+    });
+  }
+);
 
 socket.on(
   "transcript:segment",
@@ -477,7 +555,7 @@ socket.on(
 
       try {
         // Only accept answers from a participant who has joined this room.
-        if (!socket.rooms.has(roomId)) {
+        if (!socket.rooms.has(roomId) || socket.data.role !== "CANDIDATE") {
           return;
         }
 
@@ -493,6 +571,7 @@ socket.on(
         // Speech recognition already sent the candidate's transcript in
         // segments. Only add/emit the submitted answer when no live candidate
         // transcript was received (for example, when the answer was typed).
+        const answeredQuestion = getInterviewState(roomId).currentQuestion;
         const answerAlreadyTranscribed =
           hasCandidateTranscriptSinceLastAI(roomId);
 
@@ -541,8 +620,14 @@ socket.on(
         // FOLLOW-UP
         // -------------------------------------------------
 
-        if (analysis.shouldFollowUp && analysis.followUpQuestion) {
+        if (
+          analysis.shouldFollowUp &&
+          analysis.followUpQuestion &&
+          answeredQuestion &&
+          !followUpQuestionTexts.has(answeredQuestion)
+        ) {
           const followUp = analysis.followUpQuestion.trim();
+          followUpQuestionTexts.add(followUp);
 
           state = transitionInterview(roomId, "AI_FOLLOW_UP");
 
