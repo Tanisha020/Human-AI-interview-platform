@@ -6,7 +6,9 @@ import { generateAIQuestion, analyzeCandidateAnswer } from "../ai/ai-service";
 
 import type { InterviewContext } from "../ai/ai-provider";
 import {
+  persistAIEvaluation,
   persistCandidateAnswer,
+  persistFinalInterviewReport,
   persistInterviewStatus,
   persistQuestion,
   persistTranscriptSegment,
@@ -442,11 +444,13 @@ io.on("connection", (socket) => {
         io.to(roomId).emit("ai:stop", { roomId });
       }
 
+      const event = eventMap[action];
       const previousState = getInterviewState(roomId);
       const state = transitionInterview(roomId, event);
 
       if (action === "END_INTERVIEW") {
         void persistInterviewStatus(roomId, "COMPLETED");
+        void persistFinalInterviewReport(roomId);
       }
 
       io.to(roomId).emit("interview:state", state);
@@ -596,7 +600,7 @@ socket.on(
         let state = transitionInterview(roomId, "CANDIDATE_ANSWER");
         if (state.state !== "AI_ANALYZING") return;
 
-        void persistCandidateAnswer(roomId, answer, answeredQuestion);
+        const answerPersistence = persistCandidateAnswer(roomId, answer, answeredQuestion);
 
         // Speech recognition already sent candidate transcript segments.
         // Avoid duplicating those segments when the answer is submitted.
@@ -622,6 +626,7 @@ socket.on(
           answeredQuestion.startsWith("Hello, welcome to your interview.") ||
           currentState.questionNumber === 1
         ) {
+          await answerPersistence;
           state = transitionInterview(roomId, "AI_ANALYSIS_COMPLETE");
           io.to(roomId).emit("interview:state", state);
           state = transitionInterview(roomId, "NEXT_QUESTION");
@@ -657,6 +662,9 @@ socket.on(
         console.log(`AI score: ${analysis.score}/10`);
 
         console.log(`AI feedback: ${analysis.feedback}`);
+
+        const answerId = await answerPersistence;
+        await persistAIEvaluation(roomId, answerId, analysis);
 
         // Analysis complete
         state = transitionInterview(roomId, "AI_ANALYSIS_COMPLETE");
