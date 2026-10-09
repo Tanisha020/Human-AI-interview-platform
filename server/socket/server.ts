@@ -121,7 +121,8 @@ function consolidateCandidateAnswer(roomId: string, answer: string): boolean {
     }
   }
 
-  conversation.splice(lastAIIndex + 1, 0, {
+  // Keep human transcript messages in their original chronological position.
+  conversation.splice(firstCandidateIndex, 0, {
     speaker: "CANDIDATE",
     text: answer,
   });
