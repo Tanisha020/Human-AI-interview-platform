@@ -241,7 +241,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
   }
 
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
-  const [interimTranscript, setInterimTranscript] = useState<InterimTranscript | null>(null);
+  const [interimTranscripts, setInterimTranscripts] = useState<InterimTranscript[]>([]);
 
   const [answerText, setAnswerText] = useState("");
 
@@ -630,15 +630,18 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
 
     function handleTranscript(data: TranscriptItem) {
       setTranscript((previous) => [...previous, data].slice(-100));
-      setInterimTranscript((previous) =>
-        previous?.speaker === data.speaker ? null : previous
+      setInterimTranscripts((previous) =>
+        previous.filter((item) => item.speaker !== data.speaker)
       );
     }
 
     function handleInterimTranscript(data: InterimTranscript) {
-      setInterimTranscript(
-        data.text.trim() ? { speaker: data.speaker, text: data.text.trim() } : null
-      );
+      setInterimTranscripts((previous) => {
+        const remaining = previous.filter((item) => item.speaker !== data.speaker);
+        return data.text.trim()
+          ? [...remaining, { speaker: data.speaker, text: data.text.trim() }]
+          : remaining;
+      });
     }
 
     function handleAIStop() {
@@ -670,7 +673,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
       }
 
       setInterimText("");
-      setInterimTranscript(null);
+      setInterimTranscripts([]);
       currentQuestionRef.current = null;
       setInterviewState((previous) => ({
         ...previous,
@@ -1371,7 +1374,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
       currentQuestionRef.current = null;
       setAnswerText("");
       setInterimText("");
-      setInterimTranscript(null);
+      setInterimTranscripts([]);
       setInterviewState((previous) => ({
         ...previous,
         currentQuestion: null,
@@ -1819,7 +1822,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
               <span className="text-[10px] text-slate-600">Live</span>
             </div>
 
-            {transcript.length === 0 && !interimTranscript ? (
+            {transcript.length === 0 && interimTranscripts.length === 0 ? (
               <div className="rounded-xl border border-dashed border-white/[0.08] p-4 text-center">
                 <p className="text-xs text-slate-600">
                   Start live transcription to see speech from both participants.
@@ -1838,14 +1841,14 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
                     <p className="text-xs leading-5 text-slate-300">{item.text}</p>
                   </div>
                 ))}
-                {interimTranscript && (
-                  <div className="rounded-xl border border-blue-400/20 bg-blue-500/[0.06] p-3">
+                {interimTranscripts.map((item) => (
+                  <div key={item.speaker} className="rounded-xl border border-blue-400/20 bg-blue-500/[0.06] p-3">
                     <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-blue-300">
-                      {interimTranscript.speaker} · listening
+                      {item.speaker} · listening
                     </p>
-                    <p className="text-xs leading-5 text-slate-200">{interimTranscript.text}</p>
+                    <p className="text-xs leading-5 text-slate-200">{item.text}</p>
                   </div>
-                )}
+                ))}
               </div>
             )}
           </div>
