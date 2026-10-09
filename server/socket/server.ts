@@ -349,7 +349,7 @@ io.on("connection", (socket) => {
 
     invalidatePendingQuestion(roomId);
     try {
-      await persistInterviewStatus(roomId, "LIVE");
+      void persistInterviewStatus(roomId, "LIVE");
 
       // WAITING -> INTRODUCTION
       let state = transitionInterview(roomId, "START_INTERVIEW");
