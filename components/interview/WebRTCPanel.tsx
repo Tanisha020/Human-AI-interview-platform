@@ -183,6 +183,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
   const [screenSharing, setScreenSharing] = useState(false);
 
   const [error, setError] = useState("");
+  const [showMoreOptions, setShowMoreOptions] = useState(false);
 
   const [participantCount, setParticipantCount] = useState(1);
 
@@ -1293,7 +1294,32 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
       | "RESET_QUESTION"
       | "END_INTERVIEW",
   ) {
-    socketRef.current?.emit("ai-control", {
+    // Clear locally on click so the question panel becomes blank immediately;
+    // the server broadcasts the authoritative state to both participants.
+    if (action === "RESET_QUESTION") {
+      currentQuestionRef.current = null;
+      setAnswerText("");
+      setInterimText("");
+      setInterimTranscript(null);
+      setInterviewState((previous) => ({
+        ...previous,
+        currentQuestion: null,
+        ...(previous.state === "AI_ANALYZING"
+          ? { state: "AI_LISTENING", aiStatus: "LISTENING" as const }
+          : {}),
+      }));
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    }
+
+    const socket = socketRef.current;
+    if (!socket?.connected) {
+      setError("Not connected to the interview server. Reconnect and try again.");
+      return;
+    }
+
+    socket.emit("ai-control", {
       roomId,
       action,
     });
@@ -1530,7 +1556,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
               </div>
 
               <div className="rounded-lg bg-white/[0.04] px-2.5 py-1.5 text-[10px] font-medium text-slate-500">
-                Q{interviewState.questionNumber || 1}
+                {interviewState.currentQuestion ? `Q${interviewState.questionNumber || 1}` : "—"}
               </div>
               {isInterviewer && (
                 <button
@@ -1588,8 +1614,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
 
             <div className="rounded-2xl border border-blue-400/20 bg-gradient-to-br from-blue-500/[0.10] to-violet-500/[0.05] p-5 shadow-lg shadow-blue-950/10">
               <p className="text-[15px] font-medium leading-7 text-slate-100">
-                {interviewState.currentQuestion ??
-                  "The AI interviewer will ask the next question here."}
+                {interviewState.currentQuestion ?? "\u00a0"}
               </p>
             </div>
           </div>
@@ -1761,7 +1786,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
                 <button
                   type="button"
                   onClick={() => sendAIControl("RESET_QUESTION")}
-                  disabled={!interviewState.currentQuestion || interviewState.state === "COMPLETED" || interviewState.state === "AI_ANALYZING"}
+                  disabled={!interviewState.currentQuestion || interviewState.state === "COMPLETED"}
                   title="Clear the active question without deleting interview history"
                   className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200 transition hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -1850,13 +1875,46 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
 
           {/* MORE */}
 
-          <button
-            type="button"
-            title="More options"
-            className="hidden h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] transition hover:bg-white/[0.1] sm:flex"
-          >
-            <MoreHorizontal size={20} />
-          </button>
+          <div className="relative hidden sm:block">
+            <button
+              type="button"
+              title="More options"
+              aria-expanded={showMoreOptions}
+              onClick={() => setShowMoreOptions((open) => !open)}
+              className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] transition hover:bg-white/[0.1]"
+            >
+              <MoreHorizontal size={20} />
+            </button>
+            {showMoreOptions && (
+              <div className="absolute bottom-14 right-0 z-50 w-48 rounded-xl border border-white/10 bg-[#111a2b] p-2 shadow-2xl">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(roomId);
+                      setError("Room ID copied to clipboard.");
+                    } catch {
+                      setError(`Room ID: ${roomId}`);
+                    }
+                    setShowMoreOptions(false);
+                  }}
+                  className="w-full rounded-lg px-3 py-2 text-left text-xs text-slate-200 hover:bg-white/[0.08]"
+                >
+                  Copy room ID
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMoreOptions(false);
+                    leaveInterview();
+                  }}
+                  className="w-full rounded-lg px-3 py-2 text-left text-xs text-red-300 hover:bg-red-500/10"
+                >
+                  Leave interview
+                </button>
+              </div>
+            )}
+          </div>
 
           <div className="mx-2 hidden h-8 w-px bg-white/10 sm:block" />
 
