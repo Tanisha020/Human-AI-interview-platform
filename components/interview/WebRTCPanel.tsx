@@ -483,7 +483,6 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
       peerRef.current.close();
       peerRef.current = null;
     }
-    pendingIceCandidatesRef.current = [];
 
     const peer = new RTCPeerConnection({
       iceServers: [
@@ -546,6 +545,9 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
       localStream.getTracks().forEach((track) => {
         addLocalTrackToPeer(track);
       });
+    }
+    if (screenTrackRef.current) {
+      addLocalTrackToPeer(screenTrackRef.current);
     }
 
     return peer;
@@ -834,6 +836,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
       peerRef.current?.close();
 
       peerRef.current = null;
+      pendingIceCandidatesRef.current = [];
 
       remoteSocketIdRef.current = null;
     }
