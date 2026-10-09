@@ -1321,6 +1321,12 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
       | "RESET_QUESTION"
       | "END_INTERVIEW",
   ) {
+    const socket = socketRef.current;
+    if (!socket?.connected) {
+      setError("Not connected to the interview server. Reconnect and try again.");
+      return;
+    }
+
     // Clear locally on click so the question panel becomes blank immediately;
     // the server broadcasts the authoritative state to both participants.
     if (action === "RESET_QUESTION") {
@@ -1338,12 +1344,6 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
-    }
-
-    const socket = socketRef.current;
-    if (!socket?.connected) {
-      setError("Not connected to the interview server. Reconnect and try again.");
-      return;
     }
 
     socket.emit("ai-control", {
