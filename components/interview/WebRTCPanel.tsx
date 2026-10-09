@@ -476,6 +476,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
       peerRef.current.close();
       peerRef.current = null;
     }
+    pendingIceCandidatesRef.current = [];
 
     const peer = new RTCPeerConnection({
       iceServers: [
@@ -695,9 +696,9 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
         });
       }
 
-      // If the user already enabled
-      // camera/mic, create the offer.
-      if (localStreamRef.current) {
+      // Use a deterministic offerer to avoid both peers creating offers
+      // at once. The lower socket ID initiates when it already has media.
+      if (localStreamRef.current && socket.id && socket.id < data.socketId) {
         void createOffer(data.socketId);
       }
     }
@@ -716,9 +717,11 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
         });
       }
 
-      // We don't create an offer here.
-      // The new participant is responsible
-      // for creating the offer.
+      // Either peer may join first; choose one deterministic offerer so
+      // media enabled after both participants join still starts negotiation.
+      if (localStreamRef.current && socket.id && socket.id < data.socketId) {
+        void createOffer(data.socketId);
+      }
     }
 
     async function handleOffer(data: {
@@ -940,11 +943,17 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
 
       localStreamRef.current.addTrack(audioTrack);
 
-      // Enable audio in the peer.
+      // Enable audio in the peer. If media was enabled after both people
+      // joined, create the initial offer from the deterministic offerer.
       if (peerRef.current) {
         addLocalTrackToPeer(audioTrack);
-
         await renegotiatePeer();
+      } else if (
+        remoteSocketIdRef.current &&
+        socketRef.current?.id &&
+        socketRef.current.id < remoteSocketIdRef.current
+      ) {
+        await createOffer(remoteSocketIdRef.current);
       }
 
       setMicOn(true);
@@ -1007,11 +1016,17 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
         localVideoRef.current.srcObject = localStreamRef.current;
       }
 
-      // Enable video in peer.
+      // Enable video in peer. If media was enabled after both people
+      // joined, create the initial offer from the deterministic offerer.
       if (peerRef.current) {
         addLocalTrackToPeer(videoTrack);
-
         await renegotiatePeer();
+      } else if (
+        remoteSocketIdRef.current &&
+        socketRef.current?.id &&
+        socketRef.current.id < remoteSocketIdRef.current
+      ) {
+        await createOffer(remoteSocketIdRef.current);
       }
 
       setCameraOn(true);
