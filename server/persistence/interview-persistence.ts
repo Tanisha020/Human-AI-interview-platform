@@ -236,7 +236,7 @@ export async function persistFinalInterviewReport(interviewId: string): Promise<
     const uniqueLines = (values: (string | null)[]) =>
       [...new Set(values.flatMap((value) => (value || "").split("\n").map((line) => line.trim()).filter(Boolean)))];
     const strengths = uniqueLines(evaluations.map((evaluation) => evaluation.strengths)).slice(0, 8).join("\n");
-    const weaknesses = uniqueLines(evaluations.map((evaluation) => evaluation.weaknesses)).slice(0, 8).join("\\n");
+    const weaknesses = uniqueLines(evaluations.map((evaluation) => evaluation.weaknesses)).slice(0, 8).join("\n");
     const feedback = evaluations.map((evaluation) => evaluation.feedback).filter(Boolean).slice(-5).join("\n");
 
     const recommendation =
