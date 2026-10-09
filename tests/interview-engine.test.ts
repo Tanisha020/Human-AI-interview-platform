@@ -16,12 +16,12 @@ test("reset clears the active question and Next Question reuses its number", () 
   const reset = transitionInterview(roomId, "RESET_QUESTION");
   assert.equal(reset.currentQuestion, null);
   assert.equal(reset.state, "AI_LISTENING");
-  assert.equal(reset.questionNumber, 1);
+  assert.equal(reset.questionNumber, 2);
 
   const next = transitionInterview(roomId, "NEXT_QUESTION");
   assert.equal(next.state, "AI_TURN");
   assert.equal(next.currentQuestion, null);
-  assert.equal(next.questionNumber, 1);
+  assert.equal(next.questionNumber, 2);
 });
 
 test("reset works while an answer is being analyzed", () => {
