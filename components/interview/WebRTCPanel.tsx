@@ -1106,7 +1106,9 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
       const cameraTrack = localStreamRef.current?.getVideoTracks()[0];
       const sender = peerRef.current
         ?.getSenders()
-        .find((item) => item.track?.kind === "video");
+        .find((item) => item.track?.kind === "video") ??
+        peerRef.current?.getTransceivers()
+          .find((transceiver) => transceiver.receiver.track.kind === "video")?.sender;
 
       if (sender) {
         if (cameraTrack) cameraTrack.enabled = cameraOn;
@@ -1153,7 +1155,9 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
         const cameraTrack = localStreamRef.current?.getVideoTracks()[0];
         const sender = peerRef.current
           ?.getSenders()
-          .find((item) => item.track?.kind === "video");
+          .find((item) => item.track?.kind === "video") ??
+          peerRef.current?.getTransceivers()
+            .find((transceiver) => transceiver.receiver.track.kind === "video")?.sender;
 
         if (sender) {
           if (cameraTrack) cameraTrack.enabled = cameraOn;
