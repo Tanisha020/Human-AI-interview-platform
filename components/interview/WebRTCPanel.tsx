@@ -184,6 +184,22 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
 
   const [error, setError] = useState("");
   const [showMoreOptions, setShowMoreOptions] = useState(false);
+  const [humanEvaluationScores, setHumanEvaluationScores] = useState({
+    technicalKnowledge: 5,
+    problemSolving: 5,
+    communication: 5,
+    relevance: 5,
+    confidence: 5,
+    behavioral: 5,
+    jobSkills: 5,
+  });
+  const [humanEvaluationNotes, setHumanEvaluationNotes] = useState({
+    strengths: "",
+    weaknesses: "",
+    feedback: "",
+  });
+  const [humanEvaluationMessage, setHumanEvaluationMessage] = useState("");
+  const [savingHumanEvaluation, setSavingHumanEvaluation] = useState(false);
 
   const [participantCount, setParticipantCount] = useState(1);
 
@@ -1325,6 +1341,29 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
     });
   }
 
+  async function submitHumanEvaluation() {
+    setSavingHumanEvaluation(true);
+    setHumanEvaluationMessage("");
+    try {
+      const response = await fetch(`/api/interviews/${encodeURIComponent(roomId)}/evaluation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...humanEvaluationScores, ...humanEvaluationNotes }),
+      });
+      const result = (await response.json()) as { error?: string; message?: string };
+      if (!response.ok) {
+        throw new Error(result.error || "Could not save the human evaluation.");
+      }
+      setHumanEvaluationMessage("Human evaluation saved.");
+    } catch (evaluationError) {
+      setHumanEvaluationMessage(
+        evaluationError instanceof Error ? evaluationError.message : "Could not save the human evaluation."
+      );
+    } finally {
+      setSavingHumanEvaluation(false);
+    }
+  }
+
   // =====================================================
   // LEAVE INTERVIEW
   // =====================================================
@@ -1816,6 +1855,71 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
                 >
                   End interview
                 </button>
+
+                {interviewState.state === "COMPLETED" && (
+                  <section className="col-span-2 mt-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                    <h3 className="mb-1 text-xs font-semibold text-slate-100">Human evaluation</h3>
+                    <p className="mb-3 text-[10px] leading-4 text-slate-400">Rate each area from 0–10. Save your assessment for the final interview record.</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        ["technicalKnowledge", "Technical knowledge"],
+                        ["problemSolving", "Problem solving"],
+                        ["communication", "Communication"],
+                        ["relevance", "Answer relevance"],
+                        ["confidence", "Confidence"],
+                        ["behavioral", "Behavioral"],
+                        ["jobSkills", "Job skills"],
+                      ] as const).map(([key, label]) => (
+                        <label key={key} className="text-[10px] text-slate-400">
+                          <span className="mb-1 block">{label}: {humanEvaluationScores[key]}/10</span>
+                          <input
+                            type="range"
+                            min={0}
+                            max={10}
+                            value={humanEvaluationScores[key]}
+                            onChange={(event) => setHumanEvaluationScores((previous) => ({
+                              ...previous,
+                              [key]: Number(event.target.value),
+                            }))}
+                            className="w-full accent-blue-500"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    <textarea
+                      value={humanEvaluationNotes.strengths}
+                      onChange={(event) => setHumanEvaluationNotes((previous) => ({ ...previous, strengths: event.target.value }))}
+                      placeholder="Strengths (optional)"
+                      rows={2}
+                      className="mt-3 w-full rounded-lg border border-white/10 bg-black/20 p-2 text-xs text-slate-200 outline-none focus:border-blue-500/50"
+                    />
+                    <textarea
+                      value={humanEvaluationNotes.weaknesses}
+                      onChange={(event) => setHumanEvaluationNotes((previous) => ({ ...previous, weaknesses: event.target.value }))}
+                      placeholder="Areas to improve (optional)"
+                      rows={2}
+                      className="mt-2 w-full rounded-lg border border-white/10 bg-black/20 p-2 text-xs text-slate-200 outline-none focus:border-blue-500/50"
+                    />
+                    <textarea
+                      value={humanEvaluationNotes.feedback}
+                      onChange={(event) => setHumanEvaluationNotes((previous) => ({ ...previous, feedback: event.target.value }))}
+                      placeholder="Overall feedback (optional)"
+                      rows={2}
+                      className="mt-2 w-full rounded-lg border border-white/10 bg-black/20 p-2 text-xs text-slate-200 outline-none focus:border-blue-500/50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void submitHumanEvaluation()}
+                      disabled={savingHumanEvaluation}
+                      className="mt-3 w-full rounded-lg bg-blue-600 px-3 py-2.5 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
+                    >
+                      {savingHumanEvaluation ? "Saving evaluation…" : "Save human evaluation"}
+                    </button>
+                    {humanEvaluationMessage && (
+                      <p className="mt-2 text-[10px] text-slate-300">{humanEvaluationMessage}</p>
+                    )}
+                  </section>
+                )}
               </div>
             </div>
           )}
