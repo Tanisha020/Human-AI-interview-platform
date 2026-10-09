@@ -192,8 +192,8 @@ export async function persistAIEvaluation(
         confidence: scoreOrFallback(analysis.confidence, fallback),
         behavioral: scoreOrFallback(analysis.behavioral, fallback),
         jobSkills: scoreOrFallback(analysis.jobSkills, fallback),
-        strengths: Array.isArray(analysis.strengths) ? analysis.strengths.join("\\n") : "",
-        weaknesses: Array.isArray(analysis.weaknesses) ? analysis.weaknesses.join("\\n") : "",
+        strengths: Array.isArray(analysis.strengths) ? analysis.strengths.join("\n") : "",
+        weaknesses: Array.isArray(analysis.weaknesses) ? analysis.weaknesses.join("\n") : "",
         feedback: analysis.feedback || "",
       },
     });
@@ -208,7 +208,8 @@ export async function persistFinalInterviewReport(interviewId: string): Promise<
       where: { id: interviewId },
       include: {
         participants: { where: { role: "CANDIDATE" }, select: { userId: true } },
-        answers: { include: { evaluations: true } },
+        answers: true,
+        evaluations: true,
       },
     });
 
@@ -218,7 +219,7 @@ export async function persistFinalInterviewReport(interviewId: string): Promise<
       return;
     }
 
-    const evaluations = interview.answers.flatMap((answer) => answer.evaluations);
+    const evaluations = interview.evaluations;
     const dimensionValues = evaluations.flatMap((evaluation) => [
       evaluation.technicalKnowledge,
       evaluation.problemSolving,
@@ -233,10 +234,10 @@ export async function persistFinalInterviewReport(interviewId: string): Promise<
       : null;
 
     const uniqueLines = (values: (string | null)[]) =>
-      [...new Set(values.flatMap((value) => (value || "").split("\\n").map((line) => line.trim()).filter(Boolean)))];
-    const strengths = uniqueLines(evaluations.map((evaluation) => evaluation.strengths)).slice(0, 8).join("\\n");
+      [...new Set(values.flatMap((value) => (value || "").split("\n").map((line) => line.trim()).filter(Boolean)))];
+    const strengths = uniqueLines(evaluations.map((evaluation) => evaluation.strengths)).slice(0, 8).join("\n");
     const weaknesses = uniqueLines(evaluations.map((evaluation) => evaluation.weaknesses)).slice(0, 8).join("\\n");
-    const feedback = evaluations.map((evaluation) => evaluation.feedback).filter(Boolean).slice(-5).join("\\n");
+    const feedback = evaluations.map((evaluation) => evaluation.feedback).filter(Boolean).slice(-5).join("\n");
 
     const recommendation =
       overallScore === null ? "Insufficient evaluation data" :
