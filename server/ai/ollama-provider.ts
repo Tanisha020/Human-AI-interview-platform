@@ -37,8 +37,9 @@ async function callOllama(prompt: string): Promise<string> {
       keep_alive: "10m",
       options: {
         temperature: 0.2,
-        num_predict: 220,
+        num_predict: 160,
       },
+    signal: AbortSignal.timeout(45000),
     }),
   });
 
@@ -127,26 +128,29 @@ ${context.currentQuestion || "None"}
 Recent conversation:
 ${conversation}
 
-INTERVIEW FLOW
+INTERVIEW FLOW — FOLLOW THIS ORDER
 
-The first question must be an introduction question. This is already handled separately by the application.
+The application has already asked the introduction question. Do not ask another "tell me about yourself", strengths/weaknesses, career goals, or HR question at the beginning.
 
-After the introduction, follow a natural technical interview progression:
+Use Question number as the primary technical-interview sequence:
+- 2: programming fundamentals / Java basics / OOP
+- 3: OOP design or a practical Java concept
+- 4: data structures and algorithms
+- 5: DSA problem-solving or complexity analysis
+- 6: DBMS / SQL / indexing / transactions
+- 7: operating systems / processes / threads / synchronization
+- 8: computer networks or system fundamentals
+- 9: a project implementation or debugging decision
+- 10: a practical engineering scenario
+- 11 and later: continue rotating technical topics; ask at most one behavioral question in every six main questions.
 
-1. Start with programming fundamentals, language concepts, object-oriented programming, and basic computer science.
-2. Move to data structures, algorithms, time complexity, space complexity, and problem-solving.
-3. Cover DBMS, operating systems, computer networks, and software engineering fundamentals.
-4. Discuss projects, implementation choices, debugging, design decisions, and real-world scenarios later.
-5. Include occasional behavioral questions, but do not make the interview HR-only.
+At least 4 out of every 5 independent questions must be technical, problem-solving, CS fundamentals, or project-depth questions. Behavioral/HR questions must be occasional, never consecutive, and never used as filler. Ask one clear, answerable question, not a long multi-part prompt. Do not repeat topics already covered unless the candidate's answer requires a follow-up.
 
 ADAPTIVE QUESTIONING
 
-Ask relevant follow-up questions when answers are incomplete or interesting.
-Adjust difficulty according to the candidate's answers.
-Consider the full conversation and questions already asked.
-Avoid repeating questions.
-Do not jump into project-specific questions too early.
-Consider relevant statements made by the human interviewer.
+Ask at most ONE follow-up to any question. A follow-up should be short and specific, and is allowed only when the candidate's answer is incomplete, ambiguous, or contains a useful technical claim that needs clarification. Do not ask follow-ups just to prolong the interview.
+Adjust difficulty based on answer quality, but keep the interview moving.
+Use the human interviewer's transcript as context, not as a reason to switch into HR questions.
 Ask exactly one question at a time.
 
 RULES
