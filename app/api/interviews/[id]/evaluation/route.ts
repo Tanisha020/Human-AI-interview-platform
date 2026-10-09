@@ -46,7 +46,14 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "End the interview before submitting the final human evaluation." }, { status: 409 });
     }
 
-    const parsed = evaluationSchema.safeParse(await request.json());
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
+    }
+
+    const parsed = evaluationSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: "Invalid evaluation data.", details: parsed.error.flatten().fieldErrors }, { status: 400 });
     }
