@@ -7,7 +7,7 @@ import {
   transitionInterview,
 } from "../server/interview/interview-engine";
 
-test("reset clears the active question and Next Question reuses its number", () => {
+test("reset clears the active question and skips the opening intro slot", () => {
   const roomId = "test-reset-blank";
   transitionInterview(roomId, "START_INTERVIEW");
   transitionInterview(roomId, "AI_START");
@@ -63,4 +63,23 @@ test("completed interviews cannot be restarted or changed", () => {
 
   const afterReset = transitionInterview(roomId, "RESET_QUESTION");
   assert.equal(afterReset.state, "COMPLETED");
+});
+
+test("resetting a technical question lets Next Question reuse that slot", () => {
+  const roomId = "test-reset-technical-slot";
+  transitionInterview(roomId, "START_INTERVIEW");
+  transitionInterview(roomId, "AI_START");
+  setCurrentQuestion(roomId, "Hello, welcome to your interview.");
+  transitionInterview(roomId, "CANDIDATE_ANSWER");
+  transitionInterview(roomId, "AI_ANALYSIS_COMPLETE");
+  transitionInterview(roomId, "NEXT_QUESTION");
+  setCurrentQuestion(roomId, "Explain OOP.");
+
+  const reset = transitionInterview(roomId, "RESET_QUESTION");
+  assert.equal(reset.currentQuestion, null);
+  assert.equal(reset.questionNumber, 2);
+
+  const next = transitionInterview(roomId, "NEXT_QUESTION");
+  assert.equal(next.questionNumber, 2);
+  assert.equal(next.currentQuestion, null);
 });
