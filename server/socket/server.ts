@@ -133,22 +133,22 @@ function consolidateCandidateAnswer(roomId: string, answer: string): boolean {
 // AI CONTEXT
 // =========================================================
 
-function buildAIContext(roomId: string): InterviewContext {
+async function buildAIContext(roomId: string): Promise<InterviewContext> {
   const state = getInterviewState(roomId);
   const conversation = getConversation(roomId);
+  const interview = await prisma.interview.findUnique({
+    where: { id: roomId },
+    select: { jobTitle: true, jobDescription: true, difficulty: true },
+  });
 
   return {
-    jobTitle: "Software Engineer",
-
+    jobTitle: interview?.jobTitle || "Software Engineer",
     jobDescription:
+      interview?.jobDescription ||
       "Software engineering role involving programming, data structures, algorithms, problem solving, software development and computer science fundamentals.",
-
-    difficulty: "MEDIUM",
-
+    difficulty: interview?.difficulty || "MEDIUM",
     questionNumber: state.questionNumber || 1,
-
     currentQuestion: state.currentQuestion,
-
     conversation,
   };
 }
@@ -163,7 +163,7 @@ async function generateAndSendAIQuestion(roomId: string) {
   try {
     console.log(`Generating real AI question | room: ${roomId}`);
 
-    const context = buildAIContext(roomId);
+    const context = await buildAIContext(roomId);
     const question = await generateAIQuestion(context);
 
     // A reset, human takeover, or end-interview action invalidates this
@@ -751,7 +751,7 @@ socket.on(
         console.log(`AI analyzing answer with Ollama | room: ${roomId}`);
 
         // Build context BEFORE analysis
-        const context = buildAIContext(roomId);
+        const context = await buildAIContext(roomId);
 
         // REAL AI ANALYSIS
         const analysis = await analyzeCandidateAnswer(context, answer);
