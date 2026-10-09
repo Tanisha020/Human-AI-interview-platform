@@ -659,6 +659,19 @@ socket.on(
         const answerPersistence = persistCandidateAnswer(roomId, answer, answeredQuestion);
         const answerId = await answerPersistence;
 
+        // Reset, takeover, or end may happen while the answer is being saved.
+        // Do not launch an unnecessary model request for a stale answer.
+        const stateAfterAnswerSave = getInterviewState(roomId);
+        if (
+          stateAfterAnswerSave.currentQuestion !== answeredQuestion ||
+          stateAfterAnswerSave.state === "COMPLETED" ||
+          stateAfterAnswerSave.state === "HUMAN_TURN" ||
+          stateAfterAnswerSave.state === "PAUSED_BY_HUMAN" ||
+          stateAfterAnswerSave.aiPausedByHuman
+        ) {
+          return;
+        }
+
         // Speech recognition already sent candidate transcript segments.
         // Avoid duplicating those segments when the answer is submitted.
         const answerAlreadyTranscribed =
