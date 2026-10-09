@@ -32,10 +32,10 @@ This roadmap continues the existing repository; it is not a rewrite. Core change
 | 19 | Human interviewer evaluation | Implemented in completed-room UI and authenticated API |
 | 20 | Final interview report | Implemented: aggregate report persistence, authorized API, room viewer |
 | 21 | Admin monitoring | Implemented dynamic counts and recent interview table; account-editing tools remain future work |
-| 22 | Security and privacy | In progress: signed expiring room tickets, DB-backed room membership, authorized controls/chat/signaling; broader rate limits and privacy controls remain |
-| 23 | Failure recovery | Pending: reconnect recovery, retry/backoff, stale-room cleanup, model availability diagnostics |
-| 24 | End-to-end tests | Pending: CI checks and real two-browser/device regression |
-| 25 | Final UX, documentation, deployment | In progress: configurable app/socket URLs and this roadmap; production deployment guide and polish remain |
+| 22 | Security and privacy | In progress: signed expiring room tickets, DB-backed room membership, authorized controls/chat/signaling, authorized report/evaluation APIs; rate limits and broader privacy controls remain |
+| 23 | Failure recovery | In progress: bounded Ollama timeout, async stale-result guards, environment bootstrap, database/Ollama health endpoint; reconnect retry/backoff and stale-room cleanup remain |
+| 24 | End-to-end tests | In progress: state-machine regression tests and GitHub Actions for tests/typecheck/lint; real two-browser/device regression remains |
+| 25 | Final UX, documentation, deployment | In progress: configurable app/socket URLs, environment example, Windows setup README, admin dashboard and final-report viewer; production deployment guide and full UI polish remain |
 
 ## Regression checklist
 
