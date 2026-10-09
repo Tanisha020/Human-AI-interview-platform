@@ -21,6 +21,15 @@ export type AIAnswerAnalysis = {
   strengths: string[];
   weaknesses: string[];
   feedback: string;
+  // Optional per-dimension scores returned by providers that support them.
+  // The server falls back to the overall score when a dimension is omitted.
+  technicalKnowledge?: number;
+  problemSolving?: number;
+  communication?: number;
+  relevance?: number;
+  confidence?: number;
+  behavioral?: number;
+  jobSkills?: number;
   shouldFollowUp: boolean;
   followUpQuestion?: string;
 };
