@@ -833,9 +833,11 @@ socket.on(
     (data: { targetSocketId: string; offer: RTCSessionDescriptionInit }) => {
       const { targetSocketId, offer } = data;
 
-      if (!targetSocketId || !offer) {
-        return;
-      }
+      const target = targetSocketId ? io.sockets.sockets.get(targetSocketId) : undefined;
+      const sharesInterviewRoom = Boolean(
+        target && [...socket.rooms].some((roomId) => roomId !== socket.id && target.rooms.has(roomId)),
+      );
+      if (!targetSocketId || !offer || !sharesInterviewRoom) return;
 
       console.log(`Relaying OFFER ${socket.id} → ${targetSocketId}`);
 
@@ -855,9 +857,11 @@ socket.on(
     (data: { targetSocketId: string; answer: RTCSessionDescriptionInit }) => {
       const { targetSocketId, answer } = data;
 
-      if (!targetSocketId || !answer) {
-        return;
-      }
+      const target = targetSocketId ? io.sockets.sockets.get(targetSocketId) : undefined;
+      const sharesInterviewRoom = Boolean(
+        target && [...socket.rooms].some((roomId) => roomId !== socket.id && target.rooms.has(roomId)),
+      );
+      if (!targetSocketId || !answer || !sharesInterviewRoom) return;
 
       console.log(`Relaying ANSWER ${socket.id} → ${targetSocketId}`);
 
@@ -877,9 +881,11 @@ socket.on(
     (data: { targetSocketId: string; candidate: RTCIceCandidateInit }) => {
       const { targetSocketId, candidate } = data;
 
-      if (!targetSocketId || !candidate) {
-        return;
-      }
+      const target = targetSocketId ? io.sockets.sockets.get(targetSocketId) : undefined;
+      const sharesInterviewRoom = Boolean(
+        target && [...socket.rooms].some((roomId) => roomId !== socket.id && target.rooms.has(roomId)),
+      );
+      if (!targetSocketId || !candidate || !sharesInterviewRoom) return;
 
       io.to(targetSocketId).emit("webrtc-ice-candidate", {
         candidate,
@@ -895,14 +901,19 @@ socket.on(
   socket.on(
     "chat-message",
     (data: { roomId: string; message: string; senderName?: string }) => {
-      if (!data?.roomId || !data.message || !data.message.trim()) {
+      if (
+        !data?.roomId ||
+        !data.message ||
+        !data.message.trim() ||
+        !socket.rooms.has(data.roomId)
+      ) {
         return;
       }
 
       io.to(data.roomId).emit("chat-message", {
         senderSocketId: socket.id,
 
-        senderName: data.senderName ?? socket.data.name ?? "Participant",
+        senderName: socket.data.name ?? "Participant",
 
         message: data.message.trim(),
 
