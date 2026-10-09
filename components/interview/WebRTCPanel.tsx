@@ -991,6 +991,10 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
   // SPEECH TO TEXT
   // =====================================================
 
+    // =====================================================
+  // SPEECH TO TEXT AND LIVE TRANSCRIPTION
+  // =====================================================
+
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -1013,6 +1017,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
     recognition.onstart = () => {
       setIsListening(true);
       setInterimText("");
+      setError("");
     };
 
     recognition.onresult = (event) => {
@@ -1021,21 +1026,34 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
-        const text = result[0].transcript;
+        const recognizedText = result[0].transcript.trim();
 
-        if (result.isFinal) {
-          finalText += text + " ";
-        } else {
-          temporaryText += text;
+        if (result.isFinal && recognizedText) {
+          finalText += recognizedText + " ";
+        } else if (!result.isFinal) {
+          temporaryText += recognizedText;
         }
       }
 
-      if (finalText) {
-        setAnswerText((previous) => {
-          const separator = previous.trim().length > 0 ? " " : "";
+      const socket = socketRef.current;
+      const cleanFinalText = finalText.trim();
 
-          return previous + separator + finalText.trim();
+      if (cleanFinalText && socket) {
+        // Send the recognized speech to the server.
+        // The server assigns the speaker label from the joined role.
+        socket.emit("transcript:segment", {
+          roomId,
+          text: cleanFinalText,
         });
+
+        // Only candidate speech should fill the answer editor.
+        // Interviewer speech is transcribed into the shared transcript.
+        if (userRole === "CANDIDATE") {
+          setAnswerText((previous) => {
+            const separator = previous.trim().length > 0 ? " " : "";
+            return previous + separator + cleanFinalText;
+          });
+        }
       }
 
       setInterimText(temporaryText);
@@ -1048,17 +1066,27 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
 
       const errorType = speechEvent.error || "unknown";
 
-      console.warn("Speech recognition stopped:", errorType);
+      console.warn("Speech recognition error:", errorType);
 
       setIsListening(false);
 
       if (errorType === "not-allowed") {
         setSpeechSupported(false);
+        setError(
+          "Microphone or speech recognition permission was denied. You can still type your answer.",
+        );
+      } else if (errorType === "no-speech") {
+        setError("No speech was detected. Try speaking again.");
+      } else {
+        setError(
+          "Speech recognition stopped. You can restart it or type your answer.",
+        );
       }
     };
 
     recognition.onend = () => {
       setIsListening(false);
+      setInterimText("");
     };
 
     speechRecognitionRef.current = recognition;
@@ -1072,14 +1100,13 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
 
       speechRecognitionRef.current = null;
     };
-  }, []);
+  }, [roomId, userRole]);
 
   function toggleSpeechRecognition() {
     if (!speechSupported) {
       setError(
         "Speech recognition is not supported in this browser. You can type your answer instead.",
       );
-
       return;
     }
 
@@ -1087,7 +1114,6 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
 
     if (!recognition) {
       setError("Speech recognition could not be initialized.");
-
       return;
     }
 
@@ -1096,8 +1122,15 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
       return;
     }
 
-    setError("");
-    recognition.start();
+    try {
+      setError("");
+      recognition.start();
+    } catch (error) {
+      console.error("Could not start speech recognition:", error);
+      setError(
+        "Could not start speech recognition. Stop any existing recognition session and try again.",
+      );
+    }
   }
 
   function submitCandidateAnswer() {
