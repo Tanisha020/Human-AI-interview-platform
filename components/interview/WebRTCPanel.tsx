@@ -179,6 +179,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
   const remoteSocketIdRef = useRef<string | null>(null);
 
   const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const screenTrackRef = useRef<MediaStreamTrack | null>(null);
   const currentQuestionRef = useRef<string | null>(null);
 
   const [socketConnected, setSocketConnected] = useState(false);
@@ -1039,75 +1040,78 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
 
   async function toggleScreenShare() {
     if (screenSharing) {
+      const screenTrack = screenTrackRef.current;
+      screenTrackRef.current = null;
+      if (screenTrack) {
+        screenTrack.onended = null;
+        screenTrack.stop();
+      }
+
       const cameraTrack = localStreamRef.current?.getVideoTracks()[0];
-
-      if (cameraTrack && peerRef.current) {
-        cameraTrack.enabled = cameraOn;
-
-        const sender = peerRef.current
-          .getSenders()
-          .find((item) => item.track?.kind === "video");
-
-        if (sender) {
-          await sender.replaceTrack(cameraTrack);
-        }
-      }
-
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = localStreamRef.current;
-      }
-
-      setScreenSharing(false);
-
-      return;
-    }
-
-    try {
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-      });
-
-      const screenTrack = screenStream.getVideoTracks()[0];
-
-      if (!screenTrack) {
-        return;
-      }
-
       const sender = peerRef.current
         ?.getSenders()
         .find((item) => item.track?.kind === "video");
 
       if (sender) {
-        await sender.replaceTrack(screenTrack);
+        if (cameraTrack) cameraTrack.enabled = cameraOn;
+        await sender.replaceTrack(cameraTrack ?? null);
+      }
+
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = localStreamRef.current;
+      }
+      setScreenSharing(false);
+      return;
+    }
+
+    try {
+      setError("");
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+      });
+      const screenTrack = screenStream.getVideoTracks()[0];
+      if (!screenTrack) {
+        setError("The browser did not provide a screen-share track.");
+        return;
+      }
+
+      screenTrackRef.current = screenTrack;
+      const peer = peerRef.current;
+      if (peer) {
+        const sender = peer.getSenders().find((item) => item.track?.kind === "video");
+        if (sender) {
+          await sender.replaceTrack(screenTrack);
+        } else {
+          peer.addTrack(screenTrack, screenStream);
+          await renegotiatePeer();
+        }
       }
 
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = screenStream;
       }
-
       setScreenSharing(true);
 
       screenTrack.onended = async () => {
+        screenTrackRef.current = null;
         const cameraTrack = localStreamRef.current?.getVideoTracks()[0];
+        const sender = peerRef.current
+          ?.getSenders()
+          .find((item) => item.track?.kind === "video");
 
-        if (cameraTrack && peerRef.current) {
-          const sender = peerRef.current
-            .getSenders()
-            .find((item) => item.track?.kind === "video");
-
-          if (sender) {
-            await sender.replaceTrack(cameraTrack);
-          }
+        if (sender) {
+          if (cameraTrack) cameraTrack.enabled = cameraOn;
+          await sender.replaceTrack(cameraTrack ?? null);
         }
-
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = localStreamRef.current;
         }
-
         setScreenSharing(false);
       };
     } catch (error) {
       console.error("Screen sharing failed:", error);
+      setError("Screen sharing could not start. Check browser permission and try again.");
+      setScreenSharing(false);
     }
   }
   // =====================================================
