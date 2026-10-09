@@ -25,6 +25,8 @@ jobs:
         run: npm ci
       - name: Generate Prisma client
         run: npx prisma generate
+      - name: State-machine regression tests
+        run: npm test
       - name: TypeScript check
         run: npm run typecheck
       - name: ESLint
