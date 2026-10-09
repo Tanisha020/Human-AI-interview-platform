@@ -412,13 +412,12 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
       return;
     }
 
-    const existingSender = peer
-      .getSenders()
-      .find((sender) => sender.track?.kind === track.kind);
+    const existingSender =
+      peer.getSenders().find((sender) => sender.track?.kind === track.kind) ??
+      peer.getTransceivers().find((transceiver) => transceiver.receiver.track.kind === track.kind)?.sender;
 
     if (existingSender) {
       void existingSender.replaceTrack(track);
-
       return;
     }
 
@@ -490,6 +489,12 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
 
     remoteSocketIdRef.current = targetSocketId;
 
+    // Negotiate audio/video receive slots even if the user has not enabled
+    // their microphone or camera yet. Tracks can then be attached later
+    // without requiring a second offer/answer exchange.
+    peer.addTransceiver("audio", { direction: "sendrecv" });
+    peer.addTransceiver("video", { direction: "sendrecv" });
+
     peer.onicecandidate = (event) => {
       if (!event.candidate) {
         return;
@@ -531,7 +536,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
 
     if (localStream) {
       localStream.getTracks().forEach((track) => {
-        peer.addTrack(track, localStream);
+        addLocalTrackToPeer(track);
       });
     }
 
@@ -696,9 +701,9 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
         });
       }
 
-      // Use a deterministic offerer to avoid both peers creating offers
-      // at once. The lower socket ID initiates when it already has media.
-      if (localStreamRef.current && socket.id && socket.id < data.socketId) {
+      // Use a deterministic offerer even before media is enabled so both
+      // peers establish audio/video receive slots as soon as they meet.
+      if (socket.id && socket.id < data.socketId && !peerRef.current) {
         void createOffer(data.socketId);
       }
     }
@@ -717,9 +722,9 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
         });
       }
 
-      // Either peer may join first; choose one deterministic offerer so
-      // media enabled after both participants join still starts negotiation.
-      if (localStreamRef.current && socket.id && socket.id < data.socketId) {
+      // Either peer may join first; only the lower socket ID creates the
+      // initial offer, preventing offer collisions.
+      if (socket.id && socket.id < data.socketId && !peerRef.current) {
         void createOffer(data.socketId);
       }
     }
@@ -947,7 +952,6 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
       // joined, create the initial offer from the deterministic offerer.
       if (peerRef.current) {
         addLocalTrackToPeer(audioTrack);
-        await renegotiatePeer();
       } else if (
         remoteSocketIdRef.current &&
         socketRef.current?.id &&
@@ -1020,7 +1024,6 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
       // joined, create the initial offer from the deterministic offerer.
       if (peerRef.current) {
         addLocalTrackToPeer(videoTrack);
-        await renegotiatePeer();
       } else if (
         remoteSocketIdRef.current &&
         socketRef.current?.id &&
