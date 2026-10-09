@@ -110,10 +110,15 @@ function consolidateCandidateAnswer(roomId: string, answer: string): boolean {
     }
   }
 
-  const firstCandidateIndex = conversation.findIndex(
-    (message, index) => index > lastAIIndex && message.speaker === "CANDIDATE",
-  );
-  if (firstCandidateIndex < 0) return false;
+  let lastCandidateIndex = -1;
+  let candidateSegmentCount = 0;
+  for (let index = lastAIIndex + 1; index < conversation.length; index += 1) {
+    if (conversation[index].speaker === "CANDIDATE") {
+      lastCandidateIndex = index;
+      candidateSegmentCount += 1;
+    }
+  }
+  if (lastCandidateIndex < 0) return false;
 
   for (let index = conversation.length - 1; index > lastAIIndex; index -= 1) {
     if (conversation[index].speaker === "CANDIDATE") {
@@ -121,8 +126,13 @@ function consolidateCandidateAnswer(roomId: string, answer: string): boolean {
     }
   }
 
-  // Keep human transcript messages in their original chronological position.
-  conversation.splice(firstCandidateIndex, 0, {
+  // Replace the spoken segments at the end of the candidate's answer window,
+  // preserving human transcript messages that occurred before or after it.
+  const insertionIndex = Math.max(
+    lastAIIndex + 1,
+    lastCandidateIndex - candidateSegmentCount + 1,
+  );
+  conversation.splice(insertionIndex, 0, {
     speaker: "CANDIDATE",
     text: answer,
   });
