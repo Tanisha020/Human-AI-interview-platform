@@ -266,6 +266,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
         window.speechSynthesis.cancel();
       }
       setAIStatus("LISTENING");
+      socketRef.current?.emit("ai:finished-speaking", { roomId });
       return;
     }
     enableAIVoice();
@@ -363,6 +364,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
 
       utterance.onend = () => {
         setAIStatus("LISTENING");
+        socketRef.current?.emit("ai:finished-speaking", { roomId });
       };
 
       utterance.onerror = (event) => {
@@ -371,6 +373,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
         // IMPORTANT:
         // Speech failure must not stop the interview.
         setAIStatus("LISTENING");
+        socketRef.current?.emit("ai:finished-speaking", { roomId });
       };
 
       window.speechSynthesis.speak(utterance);
@@ -397,7 +400,12 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
     // AI speech is controlled by the interviewer only. Candidates still
     // receive the question and state over Socket.IO.
     if (isInterviewer) {
-      speakAIQuestion(question);
+      if (aiVoiceEnabledRef.current) {
+        speakAIQuestion(question);
+      } else {
+        // Text-only interviews should enter listening state immediately.
+        socketRef.current?.emit("ai:finished-speaking", { roomId });
+      }
     }
   }
 
