@@ -224,12 +224,23 @@ async function generateAndSendAIQuestion(roomId: string) {
 
     return question;
   } catch (error) {
-    console.error("Real AI question generation failed:", error);
+    // Do not surface errors from a request that was superseded by reset,
+    // human takeover, or interview completion.
+    if (generationVersion !== (questionGenerationVersion.get(roomId) ?? 0)) {
+      return null;
+    }
 
+    console.error("Real AI question generation failed:", error);
     io.to(roomId).emit("ai:error", {
       message:
-        "The AI interviewer could not generate a question. Please make sure Ollama is running.",
+        "The AI interviewer could not generate a question. Check that Ollama is running and the configured model is available.",
     });
+
+    const latestState = getInterviewState(roomId);
+    if (latestState.state === "AI_TURN" || latestState.state === "AI_FOLLOW_UP") {
+      const recoveredState = transitionInterview(roomId, "AI_FINISHED_SPEAKING");
+      io.to(roomId).emit("interview:state", recoveredState);
+    }
 
     return null;
   }
@@ -855,24 +866,20 @@ socket.on(
           await generateAndSendAIQuestion(roomId);
         }
       } catch (error) {
-        console.error("AI answer analysis failed:", error);
+        // A reset or human takeover may supersede analysis while Ollama is
+        // responding. Do not show a stale error or change the newer state.
+        if (getInterviewState(roomId).state !== "AI_ANALYZING") {
+          return;
+        }
 
+        console.error("AI answer analysis failed:", error);
         io.to(roomId).emit("ai:error", {
           message:
-            "The AI could not analyze the answer. Please make sure Ollama is running.",
+            "The AI could not analyze the answer. Check that Ollama is running and the configured model is available.",
         });
 
-        // Try to recover interview state
-        try {
-          const recoveryState = transitionInterview(
-            roomId,
-            "AI_ANALYSIS_COMPLETE",
-          );
-
-          io.to(roomId).emit("interview:state", recoveryState);
-        } catch {
-          // Ignore recovery failure
-        }
+        const recoveryState = transitionInterview(roomId, "AI_ANALYSIS_COMPLETE");
+        io.to(roomId).emit("interview:state", recoveryState);
       }
     },
   );
