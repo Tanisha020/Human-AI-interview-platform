@@ -641,6 +641,7 @@ socket.on(
         if (
           currentState.state === "WAITING" ||
           currentState.state === "COMPLETED" ||
+          currentState.state === "AI_ANALYZING" ||
           currentState.state === "HUMAN_TURN" ||
           currentState.state === "PAUSED_BY_HUMAN" ||
           currentState.aiPausedByHuman ||
@@ -719,6 +720,7 @@ socket.on(
         // was evaluating, discard this stale result instead of changing turns.
         const latestStateAfterAnalysis = getInterviewState(roomId);
         if (
+          latestStateAfterAnalysis.state !== "AI_ANALYZING" ||
           latestStateAfterAnalysis.state === "COMPLETED" ||
           latestStateAfterAnalysis.state === "HUMAN_TURN" ||
           latestStateAfterAnalysis.state === "PAUSED_BY_HUMAN" ||
