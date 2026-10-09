@@ -553,6 +553,10 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
       setParticipantCount(data.count);
     }
 
+    function handleAIError(data: { message?: string }) {
+      setError(data.message?.trim() || "The interview action failed. Please try again.");
+    }
+
     function handleInterviewState(data: InterviewState) {
       currentQuestionRef.current = data.currentQuestion;
       setInterviewState(data);
@@ -761,6 +765,8 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
 
     socket.on("room-participants", handleRoomParticipants);
 
+    socket.on("ai:error", handleAIError);
+
     socket.on("interview:state", handleInterviewState);
 
     socket.on("ai:question", handleAIQuestion);
@@ -797,6 +803,8 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
       socket.off("disconnect", handleDisconnect);
 
       socket.off("room-participants", handleRoomParticipants);
+
+      socket.off("ai:error", handleAIError);
 
       socket.off("interview:state", handleInterviewState);
 
