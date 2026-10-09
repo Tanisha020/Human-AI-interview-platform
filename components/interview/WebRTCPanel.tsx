@@ -52,6 +52,7 @@ type Props = {
   roomId: string;
   userName: string;
   userRole: UserRole;
+  socketTicket: string;
 };
 
 type SignalDescription = {
@@ -164,7 +165,7 @@ function getAIStatusLabel(status: AIStatus) {
   }
 }
 
-export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
+export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }: Props) {
   const localVideoRef = useRef<HTMLVideoElement>(null);
 
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -569,6 +570,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
         roomId,
         name: userName,
         role: userRole,
+        socketTicket,
       });
     }
 
@@ -866,7 +868,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
 
       localStreamRef.current = null;
     };
-  }, [roomId, userName, userRole]);
+  }, [roomId, userName, userRole, socketTicket]);
 
   // =====================================================
   // START MICROPHONE ONLY
