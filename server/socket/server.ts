@@ -449,8 +449,10 @@ io.on("connection", (socket) => {
       const state = transitionInterview(roomId, event);
 
       if (action === "END_INTERVIEW") {
-        void persistInterviewStatus(roomId, "COMPLETED");
-        void persistFinalInterviewReport(roomId);
+        // Persist status/report before notifying the UI that the interview ended,
+        // so the human-evaluation form is ready immediately.
+        await persistInterviewStatus(roomId, "COMPLETED");
+        await persistFinalInterviewReport(roomId);
       }
 
       io.to(roomId).emit("interview:state", state);
