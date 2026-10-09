@@ -1,17 +1,5 @@
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../../lib/db/prisma";
 import type { AIAnswerAnalysis } from "../ai/ai-provider";
-
-const globalForPrisma = globalThis as unknown as {
-  interviewPrisma?: PrismaClient;
-};
-
-const prisma =
-  globalForPrisma.interviewPrisma ??
-  new PrismaClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.interviewPrisma = prisma;
-}
 
 type TranscriptSpeaker = "AI" | "CANDIDATE" | "HUMAN";
 type QuestionCategory =
