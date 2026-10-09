@@ -18,18 +18,13 @@ export default function CreateInterviewPage() {
   ) {
     event.preventDefault();
 
-    console.log("========== INTERVIEW FORM ==========");
-    console.log("scheduledAt:", scheduledAt);
-    console.log("scheduledAt length:", scheduledAt.length);
-    console.log("scheduledAt JSON:", JSON.stringify(scheduledAt));
-    console.log("====================================");
-
-    if (!scheduledAt) {
-      alert("Please select an interview date and time.");
+    const scheduledDate = new Date(scheduledAt);
+    if (!scheduledAt || !Number.isFinite(scheduledDate.getTime())) {
+      alert("Please select a valid interview date and time.");
       return;
     }
 
-    setLoading(true);
+     setLoading(true);
 
     try {
       const response = await fetch("/api/interviews", {
@@ -43,16 +38,16 @@ export default function CreateInterviewPage() {
           jobDescription,
           difficulty,
           duration: Number(duration),
-          scheduledAt,
+          // Convert the browser-local datetime to UTC so the server stores
+          // the intended instant consistently across deployment time zones.
+          scheduledAt: new Date(scheduledAt).toISOString(),
           candidateEmail,
         }),
       });
 
       const data = await response.json();
 
-      console.log("API response:", data);
-
-      if (!response.ok) {
+       if (!response.ok) {
         alert(data.error ?? "Failed to create interview.");
         return;
       }
