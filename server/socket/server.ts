@@ -565,31 +565,34 @@ socket.on(
       console.log(`Candidate answer received | room: ${roomId}`);
 
       try {
-        // Only accept answers from a participant who has joined this room.
+        // Only accept answers from the candidate while an AI question is active.
         if (!socket.rooms.has(roomId) || socket.data.role !== "CANDIDATE") {
           return;
         }
 
-        // Candidate answered
-        let state = transitionInterview(roomId, "CANDIDATE_ANSWER");
-
-        void persistCandidateAnswer(
-          roomId,
-          answer,
-          getInterviewState(roomId).currentQuestion,
-        );
-
-        // Speech recognition already sent the candidate's transcript in
-        // segments. Only add/emit the submitted answer when no live candidate
-        // transcript was received (for example, when the answer was typed).
-        const answeredQuestion = getInterviewState(roomId).currentQuestion;
         const currentState = getInterviewState(roomId);
-        if (currentState.state === "HUMAN_TURN" || currentState.state === "PAUSED_BY_HUMAN") {
-          io.to(roomId).emit("ai:error", {
-            message: "The human interviewer has the turn. Use the live transcript, then select Return to AI.",
+        if (
+          currentState.state === "WAITING" ||
+          currentState.state === "COMPLETED" ||
+          currentState.state === "HUMAN_TURN" ||
+          currentState.state === "PAUSED_BY_HUMAN" ||
+          currentState.aiPausedByHuman ||
+          !currentState.currentQuestion
+        ) {
+          io.to(socket.id).emit("ai:error", {
+            message: "There is no active AI question to answer. Wait for the AI or return control to it.",
           });
           return;
         }
+
+        const answeredQuestion = currentState.currentQuestion;
+        let state = transitionInterview(roomId, "CANDIDATE_ANSWER");
+        if (state.state !== "AI_ANALYZING") return;
+
+        void persistCandidateAnswer(roomId, answer, answeredQuestion);
+
+        // Speech recognition already sent candidate transcript segments.
+        // Avoid duplicating those segments when the answer is submitted.
         const answerAlreadyTranscribed =
           hasCandidateTranscriptSinceLastAI(roomId);
 
@@ -604,6 +607,20 @@ socket.on(
             text: answer,
             timestamp: new Date().toISOString(),
           });
+        }
+
+        // The introduction is an opening warm-up, not an HR interview loop.
+        // Save it, then move directly to the first technical question.
+        if (
+          answeredQuestion.startsWith("Hello, welcome to your interview.") ||
+          currentState.questionNumber === 1
+        ) {
+          state = transitionInterview(roomId, "AI_ANALYSIS_COMPLETE");
+          io.to(roomId).emit("interview:state", state);
+          state = transitionInterview(roomId, "NEXT_QUESTION");
+          io.to(roomId).emit("interview:state", state);
+          await generateAndSendAIQuestion(roomId);
+          return;
         }
 
         // Show THINKING state
