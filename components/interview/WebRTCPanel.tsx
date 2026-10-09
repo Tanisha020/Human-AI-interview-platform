@@ -183,6 +183,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
   const currentQuestionRef = useRef<string | null>(null);
 
   const [socketConnected, setSocketConnected] = useState(false);
+  const [roomJoined, setRoomJoined] = useState(false);
 
   const [remoteConnected, setRemoteConnected] = useState(false);
 
@@ -566,6 +567,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
       console.log("Socket connected:", socket.id);
 
       setSocketConnected(true);
+      setRoomJoined(false);
 
       socket.emit("join-room", {
         roomId,
@@ -577,7 +579,15 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
 
     function handleDisconnect() {
       setSocketConnected(false);
+      setRoomJoined(false);
       setRemoteConnected(false);
+    }
+
+    function handleRoomJoined(data: { roomId: string }) {
+      if (data.roomId === roomId) {
+        setRoomJoined(true);
+        setError("");
+      }
     }
 
     function handleRoomParticipants(data: { count: number }) {
@@ -795,6 +805,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
     socket.on("disconnect", handleDisconnect);
 
     socket.on("room-participants", handleRoomParticipants);
+    socket.on("room:joined", handleRoomJoined);
 
     socket.on("ai:error", handleAIError);
 
@@ -834,6 +845,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
       socket.off("disconnect", handleDisconnect);
 
       socket.off("room-participants", handleRoomParticipants);
+      socket.off("room:joined", handleRoomJoined);
 
       socket.off("ai:error", handleAIError);
 
@@ -1285,8 +1297,8 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
 
     const answer = answerText.trim();
 
-    if (!socket) {
-      setError("Connection to the interview server is not available.");
+    if (!socket?.connected || !roomJoined) {
+      setError("The interview room is not connected or authorized yet. Wait for the connection and try again.");
 
       return;
     }
@@ -1328,8 +1340,8 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
       | "END_INTERVIEW",
   ) {
     const socket = socketRef.current;
-    if (!socket?.connected) {
-      setError("Not connected to the interview server. Reconnect and try again.");
+    if (!socket?.connected || !roomJoined) {
+      setError("The interview room is not connected or authorized yet. Wait for the connection and try again.");
       return;
     }
 
@@ -1481,11 +1493,11 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
           >
             <span
               className={`h-2 w-2 rounded-full ${
-                socketConnected ? "bg-emerald-400" : "bg-red-400"
+                roomJoined ? "bg-emerald-400" : socketConnected ? "bg-amber-300" : "bg-red-400"
               }`}
             />
 
-            {socketConnected ? "Connected" : "Disconnected"}
+            {roomJoined ? "Connected" : socketConnected ? "Authorizing…" : "Disconnected"}
           </div>
 
           <div className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs text-slate-300">
@@ -1735,6 +1747,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
                 <button
                   type="button"
                   onClick={toggleSpeechRecognition}
+                  disabled={!roomJoined || !speechSupported}
                   className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-medium transition ${
                     isListening
                       ? "bg-red-500/15 text-red-300 ring-1 ring-red-500/30 hover:bg-red-500/20"
@@ -1747,7 +1760,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
                 <button
                   type="button"
                   onClick={submitCandidateAnswer}
-                  disabled={!answerText.trim()}
+                  disabled={!roomJoined || !answerText.trim()}
                   className="rounded-xl bg-blue-600 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Submit Answer
@@ -1817,7 +1830,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
                 <button
                   type="button"
                   onClick={toggleSpeechRecognition}
-                  disabled={!speechSupported || interviewState.state === "COMPLETED"}
+                  disabled={!speechSupported || !roomJoined || interviewState.state === "COMPLETED"}
                   title="Transcribe the interviewer's speech into the shared live transcript"
                   className="col-span-2 rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-2.5 text-xs text-violet-200 transition hover:bg-violet-500/15 disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -1830,7 +1843,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
                   onClick={() => {
                     socketRef.current?.emit("interview:start", roomId);
                   }}
-                  disabled={interviewState.state !== "WAITING"}
+                  disabled={!roomJoined || interviewState.state !== "WAITING"}
                   className="col-span-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-3 py-3 text-xs font-semibold text-white shadow-lg shadow-emerald-950/30 transition hover:from-emerald-500 hover:to-emerald-400"
                 >
                   <Sparkles size={14} />
@@ -1841,7 +1854,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
                 <button
                   type="button"
                   onClick={() => sendAIControl("HUMAN_TAKEOVER")}
-                  disabled={interviewState.state === "WAITING" || interviewState.state === "COMPLETED" || interviewState.state === "HUMAN_TURN"}
+                  disabled={!roomJoined || interviewState.state === "WAITING" || interviewState.state === "COMPLETED" || interviewState.state === "HUMAN_TURN" || interviewState.state === "PAUSED_BY_HUMAN"}
                   title="Pause the AI and ask your own questions"
                   className="rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-2.5 text-xs text-blue-300 transition hover:bg-blue-500/15 disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -1852,7 +1865,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
                 <button
                   type="button"
                   onClick={() => sendAIControl("HUMAN_FINISHED")}
-                  disabled={interviewState.state !== "HUMAN_TURN" && interviewState.state !== "PAUSED_BY_HUMAN"}
+                  disabled={!roomJoined || (interviewState.state !== "HUMAN_TURN" && interviewState.state !== "PAUSED_BY_HUMAN")}
                   title="Finish your turn and return control to the AI"
                   className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2.5 text-xs text-slate-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -1863,7 +1876,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
                 <button
                   type="button"
                   onClick={() => sendAIControl("RESET_QUESTION")}
-                  disabled={!interviewState.currentQuestion || interviewState.state === "COMPLETED"}
+                  disabled={!roomJoined || !interviewState.currentQuestion || interviewState.state === "COMPLETED"}
                   title="Clear the active question without deleting interview history"
                   className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200 transition hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -1874,7 +1887,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
                 <button
                   type="button"
                   onClick={() => sendAIControl("NEXT_QUESTION")}
-                  disabled={interviewState.state === "WAITING" || interviewState.state === "COMPLETED" || interviewState.state === "AI_ANALYZING" || interviewState.state === "HUMAN_TURN" || interviewState.state === "PAUSED_BY_HUMAN" || interviewState.aiPausedByHuman}
+                  disabled={!roomJoined || interviewState.state === "WAITING" || interviewState.state === "COMPLETED" || interviewState.state === "AI_ANALYZING" || interviewState.state === "HUMAN_TURN" || interviewState.state === "PAUSED_BY_HUMAN" || interviewState.aiPausedByHuman}
                   className="rounded-lg bg-blue-600 px-3 py-2.5 text-xs font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Next question
@@ -1888,7 +1901,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
                       sendAIControl("END_INTERVIEW");
                     }
                   }}
-                  disabled={interviewState.state === "WAITING" || interviewState.state === "COMPLETED"}
+                  disabled={!roomJoined || interviewState.state === "WAITING" || interviewState.state === "COMPLETED" || interviewState.state === "AI_ANALYZING"}
                   className="col-span-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2.5 text-xs font-medium text-red-200 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   End interview
