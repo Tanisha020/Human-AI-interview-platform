@@ -38,6 +38,20 @@ test("reset works while an answer is being analyzed", () => {
   assert.equal(reset.currentQuestion, null);
 });
 
+test("AI speech completion moves the shared state to candidate listening", () => {
+  const roomId = "test-ai-finished-speaking";
+  transitionInterview(roomId, "START_INTERVIEW");
+  transitionInterview(roomId, "AI_START");
+  setCurrentQuestion(roomId, "Explain a hash map.");
+
+  const listening = transitionInterview(roomId, "AI_FINISHED_SPEAKING");
+
+  assert.equal(listening.state, "AI_LISTENING");
+  assert.equal(listening.currentSpeaker, "CANDIDATE");
+  assert.equal(listening.aiStatus, "LISTENING");
+  assert.equal(listening.currentQuestion, "Explain a hash map.");
+});
+
 test("human takeover can return control to the AI", () => {
   const roomId = "test-human-takeover";
   transitionInterview(roomId, "START_INTERVIEW");
