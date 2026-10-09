@@ -172,13 +172,25 @@ async function generateAndSendAIQuestion(roomId: string) {
       throw new Error("AI returned an empty question.");
     }
 
-    let state = setCurrentQuestion(roomId, question.question.trim());
+    const questionText = question.question.trim();
+    await persistQuestion(roomId, questionText, question.type);
 
-    void persistQuestion(roomId, question.question.trim(), question.type);
+    const stateAfterPersistence = getInterviewState(roomId);
+    if (
+      generationVersion !== (questionGenerationVersion.get(roomId) ?? 0) ||
+      stateAfterPersistence.state === "COMPLETED" ||
+      stateAfterPersistence.state === "HUMAN_TURN" ||
+      stateAfterPersistence.state === "PAUSED_BY_HUMAN" ||
+      stateAfterPersistence.aiPausedByHuman
+    ) {
+      return null;
+    }
+
+    const state = setCurrentQuestion(roomId, questionText);
 
     addConversationMessage(roomId, {
       speaker: "AI",
-      text: question.question.trim(),
+      text: questionText,
     });
 
     io.to(roomId).emit("ai:question", {
@@ -337,7 +349,7 @@ io.on("connection", (socket) => {
 
     invalidatePendingQuestion(roomId);
     try {
-      void persistInterviewStatus(roomId, "LIVE");
+      await persistInterviewStatus(roomId, "LIVE");
 
       // WAITING -> INTRODUCTION
       let state = transitionInterview(roomId, "START_INTERVIEW");
@@ -360,9 +372,8 @@ io.on("connection", (socket) => {
 
       interviewConversations.set(roomId, []);
 
+      await persistQuestion(roomId, openingQuestion, "INTRODUCTION");
       state = setCurrentQuestion(roomId, openingQuestion);
-
-      void persistQuestion(roomId, openingQuestion, "INTRODUCTION");
 
       addConversationMessage(roomId, {
         speaker: "AI",
@@ -646,6 +657,7 @@ socket.on(
         if (state.state !== "AI_ANALYZING") return;
 
         const answerPersistence = persistCandidateAnswer(roomId, answer, answeredQuestion);
+        const answerId = await answerPersistence;
 
         // Speech recognition already sent candidate transcript segments.
         // Avoid duplicating those segments when the answer is submitted.
@@ -671,7 +683,6 @@ socket.on(
           answeredQuestion.startsWith("Hello, welcome to your interview.") ||
           currentState.questionNumber === 1
         ) {
-          await answerPersistence;
           state = transitionInterview(roomId, "AI_ANALYSIS_COMPLETE");
           io.to(roomId).emit("interview:state", state);
           state = transitionInterview(roomId, "NEXT_QUESTION");
@@ -708,7 +719,6 @@ socket.on(
 
         console.log(`AI feedback: ${analysis.feedback}`);
 
-        const answerId = await answerPersistence;
         await persistAIEvaluation(roomId, answerId, analysis);
 
         // Analysis complete
@@ -741,7 +751,17 @@ socket.on(
 
           state = setCurrentQuestion(roomId, followUp);
 
-          void persistQuestion(roomId, followUp, "FOLLOW_UP");
+          await persistQuestion(roomId, followUp, "FOLLOW_UP");
+
+          // A reset/takeover may occur while the database write is pending.
+          const latestAfterFollowUpSave = getInterviewState(roomId);
+          if (
+            latestAfterFollowUpSave.currentQuestion !== answeredQuestion ||
+            latestAfterFollowUpSave.state === "COMPLETED" ||
+            latestAfterFollowUpSave.aiPausedByHuman
+          ) {
+            return;
+          }
 
           addConversationMessage(roomId, {
             speaker: "AI",
