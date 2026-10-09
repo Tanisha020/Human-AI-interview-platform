@@ -348,6 +348,7 @@ io.on("connection", (socket) => {
 
         const resetState = transitionInterview(roomId, "RESET_QUESTION");
         io.to(roomId).emit("interview:state", resetState);
+        io.to(roomId).emit("question:reset", { roomId });
         return;
       }
 
