@@ -721,9 +721,6 @@ socket.on(
         const latestStateAfterAnalysis = getInterviewState(roomId);
         if (
           latestStateAfterAnalysis.state !== "AI_ANALYZING" ||
-          latestStateAfterAnalysis.state === "COMPLETED" ||
-          latestStateAfterAnalysis.state === "HUMAN_TURN" ||
-          latestStateAfterAnalysis.state === "PAUSED_BY_HUMAN" ||
           latestStateAfterAnalysis.aiPausedByHuman ||
           latestStateAfterAnalysis.currentQuestion !== answeredQuestion
         ) {
