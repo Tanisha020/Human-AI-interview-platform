@@ -230,6 +230,9 @@ export function transitionInterview(
       ) {
         return updateState(roomId, {
           currentQuestion: null,
+          // If the opening introduction is reset, continue with the first
+          // technical slot rather than prompting for an introduction again.
+          questionNumber: current.questionNumber === 1 ? 2 : current.questionNumber,
           state: "AI_LISTENING",
           currentSpeaker: "CANDIDATE",
           aiStatus: "LISTENING",
