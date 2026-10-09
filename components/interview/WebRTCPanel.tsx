@@ -629,6 +629,12 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
       currentQuestionRef.current = data.currentQuestion;
       setInterviewState(data);
 
+      // Load the persisted report automatically when the room is completed,
+      // so a dashboard "Open report" link does not land on an empty viewer.
+      if (data.state === "COMPLETED") {
+        void loadFinalReport();
+      }
+
       // A human takeover, pause, or completed interview must stop speech
       // immediately instead of allowing the previous AI question to continue.
       if (
