@@ -1,33 +1,33 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { z } from "zod";
 
 import { prisma } from "@/lib/db/prisma";
 
+const registrationSchema = z.object({
+  name: z.string().trim().min(1, "Name is required.").max(100, "Name is too long."),
+  email: z.string().trim().email("Enter a valid email address.").max(254).transform((value) => value.toLowerCase()),
+  password: z.string().min(8, "Password must be at least 8 characters.").max(72, "Password must be 72 characters or fewer."),
+});
+
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
+    }
 
-    const name = String(body.name ?? "").trim();
-    const email = String(body.email ?? "").trim().toLowerCase();
-    const password = String(body.password ?? "");
-
-    if (!name || !email || !password) {
+    const parsed = registrationSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        {
-          error: "Name, email and password are required.",
-        },
+        { error: parsed.error.issues[0]?.message ?? "Invalid registration data." },
         { status: 400 }
       );
     }
 
-    if (password.length < 8) {
-      return NextResponse.json(
-        {
-          error: "Password must be at least 8 characters.",
-        },
-        { status: 400 }
-      );
-    }
+    const { name, email, password } = parsed.data;
 
     const existingUser = await prisma.user.findUnique({
       where: { email },
