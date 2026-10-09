@@ -34,6 +34,11 @@ async function callOllama(prompt: string): Promise<string> {
       ],
       stream: false,
       format: "json",
+      keep_alive: "10m",
+      options: {
+        temperature: 0.2,
+        num_predict: 320,
+      },
     }),
   });
 
