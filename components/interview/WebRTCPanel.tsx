@@ -1488,7 +1488,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
 
           <div
             className={`flex items-center gap-2 text-xs ${
-              socketConnected ? "text-emerald-400" : "text-red-400"
+              roomJoined ? "text-emerald-400" : socketConnected ? "text-amber-300" : "text-red-400"
             }`}
           >
             <span
