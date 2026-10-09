@@ -1,9 +1,16 @@
+import "dotenv/config";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
 import { generateAIQuestion, analyzeCandidateAnswer } from "../ai/ai-service";
 
 import type { InterviewContext } from "../ai/ai-provider";
+import {
+  persistCandidateAnswer,
+  persistInterviewStatus,
+  persistQuestion,
+  persistTranscriptSegment,
+} from "../persistence/interview-persistence";
 
 import {
   getInterviewState,
@@ -129,6 +136,8 @@ async function generateAndSendAIQuestion(roomId: string) {
 
     let state = setCurrentQuestion(roomId, question.question.trim());
 
+    await persistQuestion(roomId, question.question.trim(), question.type);
+
     addConversationMessage(roomId, {
       speaker: "AI",
       text: question.question.trim(),
@@ -236,7 +245,13 @@ io.on("connection", (socket) => {
 
     console.log(`Starting REAL AI interview: ${roomId}`);
 
+    if (!socket.rooms.has(roomId)) {
+      return;
+    }
+
     try {
+      await persistInterviewStatus(roomId, "LIVE");
+
       // WAITING -> INTRODUCTION
       let state = transitionInterview(roomId, "START_INTERVIEW");
 
@@ -258,6 +273,8 @@ io.on("connection", (socket) => {
       interviewConversations.set(roomId, []);
 
       state = setCurrentQuestion(roomId, openingQuestion);
+
+      await persistQuestion(roomId, openingQuestion, "INTRODUCTION");
 
       addConversationMessage(roomId, {
         speaker: "AI",
@@ -338,6 +355,10 @@ io.on("connection", (socket) => {
 
       const state = transitionInterview(roomId, event);
 
+      if (action === "END_INTERVIEW") {
+        void persistInterviewStatus(roomId, "COMPLETED");
+      }
+
       io.to(roomId).emit("interview:state", state);
     },
   );
@@ -387,11 +408,12 @@ socket.on(
 
     const timestamp = new Date().toISOString();
 
-    // Store the speech in the AI conversation memory.
+    // Store the speech in AI memory and the database.
     addConversationMessage(roomId, {
       speaker,
       text,
     });
+    void persistTranscriptSegment(roomId, speaker, text);
 
     // Share the transcript with all participants.
     io.to(roomId).emit("transcript:update", {
@@ -430,6 +452,12 @@ socket.on(
 
         // Candidate answered
         let state = transitionInterview(roomId, "CANDIDATE_ANSWER");
+
+        await persistCandidateAnswer(
+          roomId,
+          answer,
+          getInterviewState(roomId).currentQuestion,
+        );
 
         // Speech recognition already sent the candidate's transcript in
         // segments. Only add/emit the submitted answer when no live candidate
@@ -488,6 +516,8 @@ socket.on(
           state = transitionInterview(roomId, "AI_FOLLOW_UP");
 
           state = setCurrentQuestion(roomId, followUp);
+
+          await persistQuestion(roomId, followUp, "FOLLOW_UP");
 
           addConversationMessage(roomId, {
             speaker: "AI",
@@ -553,6 +583,8 @@ socket.on(
       const question = data.question.trim();
 
       const state = setCurrentQuestion(data.roomId, question);
+
+      await persistQuestion(data.roomId, question, "TECHNICAL");
 
       addConversationMessage(data.roomId, {
         speaker: "AI",
