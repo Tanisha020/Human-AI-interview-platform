@@ -170,6 +170,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
   const remoteSocketIdRef = useRef<string | null>(null);
 
   const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const currentQuestionRef = useRef<string | null>(null);
 
   const [socketConnected, setSocketConnected] = useState(false);
 
@@ -254,7 +255,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
 
         // If the interviewer enables voice after the intro question has
         // already arrived, speak that active question once now.
-        const activeQuestion = interviewState.currentQuestion;
+        const activeQuestion = currentQuestionRef.current;
         if (activeQuestion) {
           window.setTimeout(() => speakAIQuestion(activeQuestion), 100);
         }
@@ -343,6 +344,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
 
     if (!question) return;
 
+    currentQuestionRef.current = question;
     setInterviewState((previous) => ({
       ...previous,
       currentQuestion: question,
@@ -552,6 +554,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
     }
 
     function handleInterviewState(data: InterviewState) {
+      currentQuestionRef.current = data.currentQuestion;
       setInterviewState(data);
 
       // A human takeover, pause, or completed interview must stop speech
@@ -610,6 +613,7 @@ export default function WebRTCPanel({ roomId, userName, userRole }: Props) {
 
       setInterimText("");
       setInterimTranscript(null);
+      currentQuestionRef.current = null;
       setInterviewState((previous) => ({
         ...previous,
         currentQuestion: null,
