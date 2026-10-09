@@ -269,6 +269,7 @@ io.on("connection", (socket) => {
     const existingParticipants = room ? Array.from(room) : [];
 
     await socket.join(roomId);
+    socket.emit("room:joined", { roomId });
 
     console.log(`Socket ${socket.id} joined room ${roomId}`);
 
