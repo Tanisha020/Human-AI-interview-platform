@@ -32,6 +32,11 @@ export default async function CandidateDashboardPage() {
     orderBy: {
       scheduledAt: "asc",
     },
+    include: {
+      report: {
+        select: { overallScore: true },
+      },
+    },
   });
 
   const upcomingInterviews = interviews.filter(
@@ -186,17 +191,14 @@ export default async function CandidateDashboardPage() {
               skills.
             </p>
 
-            <button
-              type="button"
-              className="mt-4 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              Start Practice
-            </button>
+            <p className="mt-4 text-sm text-slate-500">
+              Self-guided practice mode is not available yet. Your assigned interviews appear above.
+            </p>
           </div>
         </section>
 
         {/* Reports */}
-        <section className="mt-6">
+        <section id="reports" className="mt-6 scroll-mt-6">
           <div className="rounded-xl border bg-white p-6 shadow-sm">
             <h2 className="text-xl font-bold text-slate-900">
               Reports
@@ -206,12 +208,26 @@ export default async function CandidateDashboardPage() {
               View your interview performance reports.
             </p>
 
-            <button
-              type="button"
-              className="mt-4 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              View Reports
-            </button>
+            {completedInterviews.filter((interview) => interview.report).length === 0 ? (
+              <p className="mt-4 text-sm text-slate-500">No final reports are available yet.</p>
+            ) : (
+              <ul className="mt-4 space-y-3">
+                {completedInterviews.filter((interview) => interview.report).map((interview) => (
+                  <li key={interview.id} className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="font-medium text-slate-900">{interview.title}</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {interview.jobTitle} · Score: {interview.report?.overallScore ?? "Not scored"}
+                        {interview.report?.overallScore !== null && interview.report?.overallScore !== undefined ? "/10" : ""}
+                      </p>
+                    </div>
+                    <Link href={`/interview/${interview.id}`} className="inline-flex w-fit rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                      Open report
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </section>
       </div>
