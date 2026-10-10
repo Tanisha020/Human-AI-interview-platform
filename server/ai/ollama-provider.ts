@@ -18,7 +18,7 @@ type OllamaResponse = {
   response?: string;
 };
 
-async function callOllama(prompt: string): Promise<string> {
+async function callOllama(prompt: string, maxTokens = 512): Promise<string> {
   const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
     method: "POST",
     headers: {
@@ -37,12 +37,11 @@ async function callOllama(prompt: string): Promise<string> {
       keep_alive: "10m",
       options: {
         temperature: 0.2,
-        // Answer evaluations contain several scores and feedback fields. 160 tokens
-        // can truncate the JSON mid-field, making parsing fail even when Ollama works.
-        num_predict: 512,
+        // Keep evaluation output comfortably below the limit while allowing complete JSON.
+        num_predict: maxTokens,
       },
     }),
-    signal: AbortSignal.timeout(45000),
+    signal: AbortSignal.timeout(90000),
   });
 
   if (!response.ok) {
@@ -79,7 +78,7 @@ function parseJSON<T>(text: string): T {
     }
 
     throw new Error(
-      `Could not parse Ollama JSON response: ${text}`
+      `Ollama returned invalid or truncated JSON. Response starts with: ${text.slice(0, 240)}`
     );
   }
 }
@@ -236,9 +235,7 @@ Give an overall score from 0 to 10 and separate scores from 0 to 10 for:
 
 Score only evidence in the answer. For behavioral, use how clearly the answer demonstrates a relevant behavior; if the question is technical and behavioral evidence is not applicable, use the overall score rather than penalizing the candidate.
 
-Decide whether a follow-up question would be useful.
-
-If a follow-up is useful, create exactly ONE follow-up question.
+Keep the response concise to avoid truncation: at most 2 short strengths, at most 2 short weaknesses, feedback no longer than 2 sentences. Decide whether one short follow-up question would genuinely help.
 
 Return ONLY valid JSON:
 
@@ -264,14 +261,19 @@ Rules:
 2. Do not judge appearance or facial expressions.
 3. Do not make assumptions about personality.
 4. Evaluate only the answer.
-5. If the answer is strong and complete,
-   shouldFollowUp can be false.
+5. If the answer is strong and complete, shouldFollowUp can be false.
+6. Use integer scores from 0 to 10.
+7. Keep every string short. If no follow-up is needed, use an empty string for followUpQuestion.
 `;
 
-    const result = await callOllama(prompt);
+    const result = await callOllama(prompt, 1024);
 
     const analysis =
       parseJSON<AIAnswerAnalysis>(result);
+
+    if (!analysis || typeof analysis !== "object" || Array.isArray(analysis)) {
+      throw new Error("Ollama evaluation response was not a JSON object.");
+    }
 
     return {
       score: Math.max(
