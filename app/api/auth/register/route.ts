@@ -8,6 +8,7 @@ const registrationSchema = z.object({
   name: z.string().trim().min(1, "Name is required.").max(100, "Name is too long."),
   email: z.string().trim().email("Enter a valid email address.").max(254).transform((value) => value.toLowerCase()),
   password: z.string().min(8, "Password must be at least 8 characters.").max(72, "Password must be 72 characters or fewer."),
+  role: z.enum(["CANDIDATE", "INTERVIEWER"]).default("CANDIDATE"),
 });
 
 export async function POST(request: Request) {
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { name, email, password } = parsed.data;
+    const { name, email, password, role } = parsed.data;
 
     const existingUser = await prisma.user.findUnique({
       where: { email },
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
         name,
         email,
         passwordHash,
-        role: "CANDIDATE",
+        role,
       },
       select: {
         id: true,
