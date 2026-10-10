@@ -1277,7 +1277,6 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
 
       if (errorType === "not-allowed" || errorType === "service-not-allowed") {
         shouldKeepListeningRef.current = false;
-        setSpeechSupported(false);
         setError("Microphone or speech recognition permission was denied. You can still type your answer.");
       } else if (errorType === "no-speech") {
         // Silence is normal in an interview; onend will restart recognition.
