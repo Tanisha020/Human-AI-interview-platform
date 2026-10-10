@@ -10,6 +10,7 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState<"CANDIDATE" | "INTERVIEWER">("CANDIDATE");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -30,6 +31,7 @@ export default function RegisterPage() {
           name,
           email,
           password,
+          role,
         }),
       });
 
@@ -98,6 +100,27 @@ export default function RegisterPage() {
               required
               className="w-full rounded-lg border bg-background px-4 py-3 text-sm outline-none focus:ring-2"
             />
+          </div>
+
+          <div>
+            <label
+              htmlFor="role"
+              className="mb-2 block text-sm font-medium"
+            >
+              I want to join as
+            </label>
+            <select
+              id="role"
+              value={role}
+              onChange={(event) => setRole(event.target.value as "CANDIDATE" | "INTERVIEWER")}
+              className="w-full rounded-lg border bg-background px-4 py-3 text-sm outline-none focus:ring-2"
+            >
+              <option value="CANDIDATE">Candidate — attend interviews</option>
+              <option value="INTERVIEWER">Interviewer — create and manage interviews</option>
+            </select>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Choose the role you will use for this account. Admin access is assigned separately.
+            </p>
           </div>
 
           <div>
