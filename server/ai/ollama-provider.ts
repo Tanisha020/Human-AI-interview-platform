@@ -266,7 +266,7 @@ Rules:
 7. Keep every string short. If no follow-up is needed, use an empty string for followUpQuestion.
 `;
 
-    const result = await callOllama(prompt, 1024);
+    const result = await callOllama(prompt, 2048);
 
     const analysis =
       parseJSON<AIAnswerAnalysis>(result);
