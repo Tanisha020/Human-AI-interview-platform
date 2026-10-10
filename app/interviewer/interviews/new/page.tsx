@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function CreateInterviewPage() {
+  const router = useRouter();
   const [title, setTitle] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [jobDescription, setJobDescription] = useState("");
@@ -54,7 +56,7 @@ export default function CreateInterviewPage() {
 
       alert("Interview created successfully!");
 
-      window.location.href = "/interviewer";
+      router.push("/interviewer");
     } catch (error) {
       console.error("Create interview error:", error);
       alert("Something went wrong. Please try again.");
