@@ -5,6 +5,31 @@ import Link from "next/link";
 
 export const instant = false;
 
+type ReportScoreEvaluation = {
+  source: string;
+  answerId: string | null;
+  technicalKnowledge: number;
+  problemSolving: number;
+  communication: number;
+  relevance: number;
+  confidence: number;
+  behavioral: number;
+  jobSkills: number;
+  answer: { question: { type: string } } | null;
+};
+
+function getAdjustedReportScore(evaluations: ReportScoreEvaluation[]) {
+  const aiEvaluations = evaluations.filter((item) => item.source === "AI" && item.answerId);
+  const values = aiEvaluations.flatMap((item) => {
+    const scores = [item.technicalKnowledge, item.problemSolving, item.communication, item.relevance, item.confidence, item.jobSkills];
+    if (item.answer?.question.type === "BEHAVIORAL") scores.push(item.behavioral);
+    return scores;
+  });
+  return values.length
+    ? Math.round((values.reduce((sum, score) => sum + score, 0) / values.length) * 10) / 10
+    : null;
+}
+
 export default async function CandidateDashboardPage() {
   const session = await auth();
 
@@ -35,6 +60,10 @@ export default async function CandidateDashboardPage() {
     include: {
       report: {
         select: { overallScore: true },
+      },
+      evaluations: {
+        where: { source: "AI" },
+        include: { answer: { include: { question: { select: { type: true } } } } },
       },
     },
   });
@@ -217,8 +246,8 @@ export default async function CandidateDashboardPage() {
                     <div>
                       <p className="font-medium text-slate-900">{interview.title}</p>
                       <p className="mt-1 text-sm text-slate-500">
-                        {interview.jobTitle} · Score: {interview.report?.overallScore ?? "Not scored"}
-                        {interview.report?.overallScore !== null && interview.report?.overallScore !== undefined ? "/10" : ""}
+                        {interview.jobTitle} · Score: {getAdjustedReportScore(interview.evaluations) ?? interview.report?.overallScore ?? "Not scored"}
+                        {(getAdjustedReportScore(interview.evaluations) ?? interview.report?.overallScore) !== null && (getAdjustedReportScore(interview.evaluations) ?? interview.report?.overallScore) !== undefined ? "/10" : ""}
                       </p>
                     </div>
                     <Link href={`/interview/${interview.id}/report`} className="inline-flex w-fit rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
