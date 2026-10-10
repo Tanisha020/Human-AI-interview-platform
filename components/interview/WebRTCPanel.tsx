@@ -1876,9 +1876,10 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
             </div>
           )}
 
-          {/* TRANSCRIPT */}
-
-          <div className="max-h-52 shrink-0 overflow-y-auto p-5">
+          {/* Keep the shared live transcript visible to interviewers only.
+              Candidate speech is still transcribed, synchronized, and persisted for interview review. */}
+          {isInterviewer && (
+            <div className="max-h-52 shrink-0 overflow-y-auto p-5">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">
                 Live transcript
@@ -1915,8 +1916,8 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
                   </div>
                 ))}
               </div>
-            )}
-          </div>
+            )}            </div>
+          )}
 
           {/* HUMAN INTERVIEWER CONTROLS */}
 
