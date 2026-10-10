@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
 
 import type { Socket } from "socket.io-client";
 
@@ -39,6 +40,12 @@ type SpeechRecognitionInstance = {
 };
 
 type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
+
+const subscribeToSpeechSupport = () => () => {};
+const getSpeechSupportSnapshot = () =>
+  typeof window !== "undefined" &&
+  Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+const getServerSpeechSupportSnapshot = () => false;
 
 declare global {
   interface Window {
@@ -166,6 +173,7 @@ function getAIStatusLabel(status: AIStatus) {
 }
 
 export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }: Props) {
+  const router = useRouter();
   const localVideoRef = useRef<HTMLVideoElement>(null);
 
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -248,7 +256,11 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
   const [isListening, setIsListening] = useState(false);
   const [aiVoiceEnabled, setAiVoiceEnabled] = useState(false);
   const aiVoiceEnabledRef = useRef(false);
-  const [speechSupported, setSpeechSupported] = useState(true);
+  const speechSupported = useSyncExternalStore(
+    subscribeToSpeechSupport,
+    getSpeechSupportSnapshot,
+    getServerSpeechSupportSnapshot,
+  );
 
   const [interimText, setInterimText] = useState("");
 
@@ -1198,7 +1210,6 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
       window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      setSpeechSupported(false);
       return;
     }
 
@@ -1502,7 +1513,7 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
 
     socketRef.current?.emit("leave-room", roomId);
 
-    window.location.href = "/dashboard";
+    router.push("/dashboard");
   }
 
   // =====================================================
