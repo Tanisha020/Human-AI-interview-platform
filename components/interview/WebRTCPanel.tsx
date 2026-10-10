@@ -1880,15 +1880,15 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
               Candidate speech is still transcribed, synchronized, and persisted for interview review. */}
           {isInterviewer && (
             <div className="max-h-52 shrink-0 overflow-y-auto p-5">
-            <div className="mb-3 flex items-center justify-between">
+              <div className="mb-3 flex items-center justify-between">
               <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">
                 Live transcript
               </p>
 
               <span className="text-[10px] text-slate-600">Live</span>
-            </div>
+              </div>
 
-            {transcript.length === 0 && interimTranscripts.length === 0 ? (
+              {transcript.length === 0 && interimTranscripts.length === 0 ? (
               <div className="rounded-xl border border-dashed border-white/[0.08] p-4 text-center">
                 <p className="text-xs text-slate-600">
                   Start live transcription to see speech from both participants.
@@ -1916,7 +1916,8 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
                   </div>
                 ))}
               </div>
-            )}            </div>
+              )}
+            </div>
           )}
 
           {/* HUMAN INTERVIEWER CONTROLS */}
