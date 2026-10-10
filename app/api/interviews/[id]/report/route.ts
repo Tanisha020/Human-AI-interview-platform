@@ -17,7 +17,17 @@ export async function GET(_request: Request, context: RouteContext) {
       where: { interviewId: id },
       include: {
         interview: {
-          select: { createdById: true, title: true, jobTitle: true, status: true },
+          select: {
+            createdById: true,
+            title: true,
+            jobTitle: true,
+            status: true,
+            answers: { select: { id: true } },
+            evaluations: {
+              where: { source: "AI" },
+              include: { answer: { include: { question: { select: { type: true } } } } },
+            },
+          },
         },
       },
     });
@@ -34,7 +44,39 @@ export async function GET(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: "You are not allowed to view this report." }, { status: 403 });
     }
 
-    return NextResponse.json({ report });
+    const aiEvaluations = report.interview.evaluations.filter(
+      (evaluation) => evaluation.source === "AI" && evaluation.answerId,
+    );
+    const applicableScores = aiEvaluations.flatMap((evaluation) => {
+      const scores = [
+        evaluation.technicalKnowledge,
+        evaluation.problemSolving,
+        evaluation.communication,
+        evaluation.relevance,
+        evaluation.confidence,
+        evaluation.jobSkills,
+      ];
+      // Behavioral is not relevant to technical answers; older records often
+      // stored zero here and that should not lower the overall score.
+      if (evaluation.answer?.question.type === "BEHAVIORAL") scores.push(evaluation.behavioral);
+      return scores;
+    });
+    const overallScore = applicableScores.length
+      ? Math.round((applicableScores.reduce((sum, score) => sum + score, 0) / applicableScores.length) * 10) / 10
+      : null;
+    const recommendation =
+      overallScore === null ? "Not enough evaluated answers yet" :
+      overallScore >= 8 ? "Strong performance" :
+      overallScore >= 6.5 ? "Good progress — keep practicing" :
+      overallScore >= 5 ? "Developing — focus on the improvement areas" :
+      "Practice recommended — use the question-by-question feedback as a guide";
+    const evaluatedAnswerCount = new Set(aiEvaluations.map((evaluation) => evaluation.answerId)).size;
+    const summary = `Reviewed ${report.interview.answers.length} submitted answer(s). ${evaluatedAnswerCount} answer(s) received an AI evaluation. Behavioral scores are excluded for technical questions, and answers without an evaluation are not counted as zero.`;
+    const { interview: _interview, ...reportFields } = report;
+
+    return NextResponse.json({
+      report: { ...reportFields, overallScore, recommendation, summary },
+    });
   } catch (error) {
     console.error("Fetch interview report failed:", error);
     return NextResponse.json({ error: "Could not load the interview report." }, { status: 500 });
