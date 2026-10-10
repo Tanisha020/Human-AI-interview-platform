@@ -1275,14 +1275,30 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
       console.warn("Speech recognition error:", errorType);
       setIsListening(false);
 
-      if (errorType === "not-allowed" || errorType === "service-not-allowed") {
-        shouldKeepListeningRef.current = false;
-        setError("Microphone or speech recognition permission was denied. You can still type your answer.");
-      } else if (errorType === "no-speech") {
+      if (errorType === "no-speech") {
         // Silence is normal in an interview; onend will restart recognition.
         setError("");
+        return;
+      }
+
+      // All other errors are treated as terminal for this listening attempt.
+      // Keeping the retry flag enabled here caused some browsers to loop
+      // between an error and onend, making the Speak button flicker.
+      shouldKeepListeningRef.current = false;
+
+      if (errorType === "not-allowed" || errorType === "service-not-allowed") {
+        setError("Microphone or speech recognition permission was denied. Allow microphone access for this site, then press Speak again. You can also type your answer.");
+      } else if (errorType === "audio-capture") {
+        setError("No usable microphone was found. Connect or enable a microphone, check Windows microphone privacy settings, then press Speak again.");
+      } else if (errorType === "network") {
+        setError("The browser speech recognition service could not connect. Check your internet/VPN connection and try again, or type your answer.");
+      } else if (errorType === "language-not-supported") {
+        setError("This browser does not support the selected recognition language. Try the latest Chrome or Edge, or type your answer.");
+      } else if (errorType === "aborted") {
+        // Usually caused by an intentional stop; do not restart automatically.
+        setError("");
       } else {
-        setError("Speech recognition stopped. You can restart it or type your answer.");
+        setError(`Speech recognition stopped (${errorType}). Check microphone permission and try Speak again, or type your answer.`);
       }
     };
 
