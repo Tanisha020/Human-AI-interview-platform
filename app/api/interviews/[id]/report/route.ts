@@ -72,7 +72,15 @@ export async function GET(_request: Request, context: RouteContext) {
       "Practice recommended — use the question-by-question feedback as a guide";
     const evaluatedAnswerCount = new Set(aiEvaluations.map((evaluation) => evaluation.answerId)).size;
     const summary = `Reviewed ${report.interview.answers.length} submitted answer(s). ${evaluatedAnswerCount} answer(s) received an AI evaluation. Behavioral scores are excluded for technical questions, and answers without an evaluation are not counted as zero.`;
-    const { interview: _interview, ...reportFields } = report;
+    const reportFields = {
+      id: report.id,
+      interviewId: report.interviewId,
+      candidateId: report.candidateId,
+      strengths: report.strengths,
+      weaknesses: report.weaknesses,
+      createdAt: report.createdAt,
+      updatedAt: report.updatedAt,
+    };
 
     return NextResponse.json({
       report: { ...reportFields, overallScore, recommendation, summary },
