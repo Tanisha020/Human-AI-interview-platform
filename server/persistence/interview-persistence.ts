@@ -197,7 +197,15 @@ export async function persistFinalInterviewReport(interviewId: string): Promise<
       include: {
         participants: { where: { role: "CANDIDATE" }, select: { userId: true } },
         answers: true,
-        evaluations: true,
+        evaluations: {
+          include: {
+            answer: {
+              include: {
+                question: { select: { type: true } },
+              },
+            },
+          },
+        },
       },
     });
 
@@ -207,25 +215,40 @@ export async function persistFinalInterviewReport(interviewId: string): Promise<
       return;
     }
 
-    const evaluations = interview.evaluations;
-    const dimensionValues = evaluations.flatMap((evaluation) => [
-      evaluation.technicalKnowledge,
-      evaluation.problemSolving,
-      evaluation.communication,
-      evaluation.relevance,
-      evaluation.confidence,
-      evaluation.behavioral,
-      evaluation.jobSkills,
-    ]);
+    const allEvaluations = interview.evaluations;
+    const aiEvaluations = allEvaluations.filter(
+      (evaluation) => evaluation.source === "AI" && evaluation.answerId,
+    );
+    // Prefer answer-level AI evaluations. A single human summary assessment must
+    // not be counted as if it were another candidate answer.
+    const scoredEvaluations = aiEvaluations.length ? aiEvaluations : allEvaluations;
+    const dimensionValues = scoredEvaluations.flatMap((evaluation) => {
+      const values = [
+        evaluation.technicalKnowledge,
+        evaluation.problemSolving,
+        evaluation.communication,
+        evaluation.relevance,
+        evaluation.confidence,
+        evaluation.jobSkills,
+      ];
+      // Behavioral is not applicable to ordinary technical questions. Older
+      // evaluations often stored 0 here, which unfairly dragged down the total.
+      if (evaluation.answer?.question.type === "BEHAVIORAL" || !evaluation.answer) {
+        values.push(evaluation.behavioral);
+      }
+      return values;
+    });
     const overallScore = dimensionValues.length
       ? Math.round((dimensionValues.reduce((sum, score) => sum + score, 0) / dimensionValues.length) * 10) / 10
       : null;
 
     const uniqueLines = (values: (string | null)[]) =>
       [...new Set(values.flatMap((value) => (value || "").split("\n").map((line) => line.trim()).filter(Boolean)))];
-    const strengths = uniqueLines(evaluations.map((evaluation) => evaluation.strengths)).slice(0, 8).join("\n");
-    const weaknesses = uniqueLines(evaluations.map((evaluation) => evaluation.weaknesses)).slice(0, 8).join("\n");
-    const feedback = evaluations.map((evaluation) => evaluation.feedback).filter(Boolean).slice(-5).join("\n");
+    const strengths = uniqueLines(scoredEvaluations.map((evaluation) => evaluation.strengths)).slice(0, 8).join("\n");
+    const weaknesses = uniqueLines(scoredEvaluations.map((evaluation) => evaluation.weaknesses)).slice(0, 8).join("\n");
+    const feedback = scoredEvaluations.map((evaluation) => evaluation.feedback).filter(Boolean).slice(-5).join("\n");
+    const evaluatedAnswerCount = new Set(aiEvaluations.map((evaluation) => evaluation.answerId).filter(Boolean)).size;
+    const summary = `Interview completed with ${interview.answers.length} submitted answer(s) and ${evaluatedAnswerCount} answer(s) evaluated by AI. The overall score uses applicable dimensions from completed evaluations; behavioral scoring is excluded for technical questions.`;
 
     const recommendation =
       overallScore === null ? "Insufficient evaluation data" :
@@ -240,7 +263,7 @@ export async function persistFinalInterviewReport(interviewId: string): Promise<
         interviewId,
         candidateId,
         overallScore,
-        summary: `Interview completed with ${interview.answers.length} submitted answer(s) and ${evaluations.length} evaluation(s). ${feedback}`.trim(),
+        summary: `${summary} ${feedback}`.trim(),
         strengths: strengths || null,
         weaknesses: weaknesses || null,
         recommendation,
@@ -248,7 +271,7 @@ export async function persistFinalInterviewReport(interviewId: string): Promise<
       update: {
         candidateId,
         overallScore,
-        summary: `Interview completed with ${interview.answers.length} submitted answer(s) and ${evaluations.length} evaluation(s). ${feedback}`.trim(),
+        summary: `${summary} ${feedback}`.trim(),
         strengths: strengths || null,
         weaknesses: weaknesses || null,
         recommendation,
