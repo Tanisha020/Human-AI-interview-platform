@@ -115,7 +115,7 @@ export default async function CandidateDashboardPage() {
               </p>
 
               <p className="mt-2 text-sm text-slate-500">
-                You don't have any scheduled interviews yet.
+                You do not have any scheduled interviews yet.
               </p>
             </div>
           ) : (
