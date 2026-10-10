@@ -2100,7 +2100,23 @@ export default function WebRTCPanel({ roomId, userName, userRole, socketTicket }
                   {finalReport.summary && <p className="mt-2 whitespace-pre-line text-[11px] leading-5 text-slate-300">{finalReport.summary}</p>}
                   {finalReport.strengths && <p className="mt-3 whitespace-pre-line text-[11px] leading-5 text-slate-300"><span className="font-semibold text-emerald-200">Strengths: </span>{finalReport.strengths}</p>}
                   {finalReport.weaknesses && <p className="mt-2 whitespace-pre-line text-[11px] leading-5 text-slate-300"><span className="font-semibold text-amber-200">Areas to improve: </span>{finalReport.weaknesses}</p>}
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/interview/${encodeURIComponent(roomId)}/report`)}
+                    className="mt-4 w-full rounded-lg bg-cyan-500 px-3 py-2.5 text-xs font-semibold text-slate-950 transition hover:bg-cyan-400"
+                  >
+                    Open detailed report
+                  </button>
                 </div>
+              )}
+              {interviewState.state === "COMPLETED" && !finalReport && (
+                <button
+                  type="button"
+                  onClick={() => router.push(`/interview/${encodeURIComponent(roomId)}/report`)}
+                  className="mt-3 w-full rounded-lg border border-cyan-400/25 bg-cyan-400/10 px-3 py-2.5 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/15"
+                >
+                  Open detailed report page
+                </button>
               )}
             </section>
           )}
