@@ -872,10 +872,13 @@ socket.on(
           return;
         }
 
-        console.error("AI answer analysis failed:", error);
+        const failureReason =
+          error instanceof Error ? error.message : String(error);
+        console.error("AI answer analysis failed:", failureReason, error);
+        // Show a short actionable reason in the room instead of blaming Ollama
+        // for every failure (the database/persistence path can fail too).
         io.to(roomId).emit("ai:error", {
-          message:
-            "The AI could not analyze the answer. Check that Ollama is running and the configured model is available.",
+          message: `AI evaluation failed: ${failureReason.slice(0, 240)}`,
         });
 
         const recoveryState = transitionInterview(roomId, "AI_ANALYSIS_COMPLETE");
