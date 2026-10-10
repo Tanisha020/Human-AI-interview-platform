@@ -135,29 +135,25 @@ ${context.currentQuestion || "None"}
 Recent conversation:
 ${conversation}
 
-INTERVIEW FLOW — FOLLOW THIS ORDER
+INTERVIEW FLOW — EASY TO MODERATE
 
-The application has already asked the introduction question. Do not ask another "tell me about yourself", strengths/weaknesses, career goals, or HR question at the beginning.
+The application already asked the introduction question. Do not ask another introduction or HR question at the start.
 
-Use Question number as the primary technical-interview sequence:
-- 2: programming fundamentals / Java basics / OOP
-- 3: OOP design or a practical Java concept
-- 4: data structures and algorithms
-- 5: DSA problem-solving or complexity analysis
-- 6: DBMS / SQL / indexing / transactions
-- 7: operating systems / processes / threads / synchronization
-- 8: computer networks or system fundamentals
-- 9: a project implementation or debugging decision
-- 10: a practical engineering scenario
-- 11 and later: continue rotating technical topics; ask at most one behavioral question in every six main questions.
+Start easy and increase difficulty gradually only when the candidate is doing well:
+- Question 2: basic programming or OOP definition, such as encapsulation, inheritance, or stack vs queue.
+- Question 3: a simple everyday example of that concept.
+- Question 4: easy arrays, strings, or basic DSA.
+- Question 5: a simple SQL/DBMS concept.
+- Question 6: basic operating systems or networking.
+- Question 7 onward: beginner-to-intermediate questions, then project questions when enough fundamentals have been covered.
+Avoid tricky puzzles, advanced algorithms, multi-part questions, and obscure trivia unless the job description explicitly requires them.
 
-At least 4 out of every 5 independent questions must be technical, problem-solving, CS fundamentals, or project-depth questions. Behavioral/HR questions must be occasional, never consecutive, and never used as filler. Ask one clear, answerable question, not a long multi-part prompt. Do not repeat topics already covered unless the candidate's answer requires a follow-up.
+At least 4 out of every 5 independent questions must be technical. Ask one clear, short question at a time. Avoid repeating topics already covered.
 
 ADAPTIVE QUESTIONING
 
-Ask at most ONE follow-up to any question. A follow-up should be short and specific, and is allowed only when the candidate's answer is incomplete, ambiguous, or contains a useful technical claim that needs clarification. Do not ask follow-ups just to prolong the interview.
-Adjust difficulty based on answer quality, but keep the interview moving.
-Use the human interviewer's transcript as context, not as a reason to switch into HR questions.
+Ask at most ONE follow-up per main question. If evaluation finds a relevant scoring dimension below 6/10, ask a simple, specific follow-up that gives the candidate a fair opportunity to demonstrate that skill. Do not reveal the answer or ask an unrelated question. If the answer is already adequate, move on.
+Use the human interviewer's transcript as context, but do not let it derail the technical interview.
 Ask exactly one question at a time.
 
 RULES
@@ -195,81 +191,43 @@ Return this JSON structure:
       buildConversation(context.conversation);
 
     const prompt = `
-You are evaluating a candidate in a software engineering interview.
+You are a fair, supportive software engineering interviewer. Evaluate the candidate's answer generously but honestly.
 
-Interview details:
+Job: ${context.jobTitle || "Software Engineer"}
+Difficulty: ${context.difficulty || "EASY"}
+Question: ${context.currentQuestion || "Unknown"}
+Candidate answer: ${answer}
+Recent conversation (for context): ${conversation.slice(-900)}
 
-Job title:
-${context.jobTitle || "Software Engineer"}
+SCORING POLICY
+- Score every dimension on every answer using integers 0-10: technicalKnowledge, problemSolving, communication, relevance, confidence, behavioral, jobSkills.
+- Be lenient for beginner-level answers. If the main idea is correct and relevant, a short answer normally deserves 6-8/10, not 1-3 just because details are missing.
+- Give credit for correct examples and partial understanding. Reserve 0-3 for absent, unrelated, or substantially incorrect answers; use 4-5 for partly correct answers; 6-8 for mostly correct answers; 9-10 for excellent, well-supported answers.
+- Do not require code or a real-world example unless the question asked for one.
+- Do not penalize brevity, grammar, accent, or lack of verbosity when the core answer is correct.
+- Score confidence only from the answer's clarity and directness; never infer it from appearance or voice.
+- For a technical question, behavioral is NOT APPLICABLE: set it equal to the overall score instead of giving zero. For a behavioral question, assess the behavioral evidence.
+- Assess problemSolving fairly: for a definition question, use the candidate's demonstrated reasoning and understanding rather than requiring a full solution.
+- Give a specific, encouraging feedback sentence and at most one short strength and one short improvement.
+- If any applicable dimension is below 6 and a simple follow-up could fairly clarify the candidate's understanding, set shouldFollowUp=true and ask ONE short, coherent question targeted at that dimension. The follow-up must stay on the same topic, must not reveal the answer, and should let the candidate demonstrate their knowledge. Do not ask a follow-up just to force a higher score.
+- If no follow-up is needed, use shouldFollowUp=false and followUpQuestion="".
 
-Difficulty:
-${context.difficulty || "MEDIUM"}
-
-Current question:
-${context.currentQuestion || "Unknown"}
-
-Candidate answer:
-${answer}
-
-Recent conversation:
-${conversation}
-
-Evaluate the candidate answer.
-
-Evaluate:
-
-- technical correctness
-- relevance
-- clarity
-- depth
-- problem solving
-
-Give an overall score from 0 to 10 and separate scores from 0 to 10 for:
-- technicalKnowledge
-- problemSolving
-- communication
-- relevance
-- confidence
-- behavioral
-- jobSkills
-
-Score only evidence in the answer. For behavioral, use how clearly the answer demonstrates a relevant behavior; if the question is technical and behavioral evidence is not applicable, use the overall score rather than penalizing the candidate.
-
-Keep the response concise to avoid truncation: at most 2 short strengths, at most 2 short weaknesses, feedback no longer than 2 sentences. Decide whether one short follow-up question would genuinely help.
-
-Return ONLY valid JSON:
-
-{
-  "score": 0,
-  "strengths": [],
-  "weaknesses": [],
-  "feedback": "string",
-  "technicalKnowledge": 0,
-  "problemSolving": 0,
-  "communication": 0,
-  "relevance": 0,
-  "confidence": 0,
-  "behavioral": 0,
-  "jobSkills": 0,
-  "shouldFollowUp": true,
-  "followUpQuestion": "string"
-}
-
-Rules:
-
-1. score must be between 0 and 10.
-2. Do not judge appearance or facial expressions.
-3. Do not make assumptions about personality.
-4. Evaluate only the answer.
-5. If the answer is strong and complete, shouldFollowUp can be false.
-6. Use integer scores from 0 to 10.
-7. Keep every string short. If no follow-up is needed, use an empty string for followUpQuestion.
+Return ONLY compact valid JSON with exactly these keys and short values:
+{"score":6,"strengths":["one strength"],"weaknesses":["one improvement"],"feedback":"Encouraging, specific feedback.","technicalKnowledge":6,"problemSolving":6,"communication":6,"relevance":6,"confidence":6,"behavioral":6,"jobSkills":6,"shouldFollowUp":false,"followUpQuestion":""}
 `;
 
-    const result = await callOllama(prompt, 2048);
+    const result = await callOllama(prompt, 1024);
 
-    const analysis =
-      parseJSON<AIAnswerAnalysis>(result);
+    let analysis: AIAnswerAnalysis;
+
+    try {
+      analysis = parseJSON<AIAnswerAnalysis>(result);
+    } catch {
+      // Retry once with an even smaller request if the local model truncates JSON.
+      const compactPrompt = `Evaluate this interview answer fairly and leniently. Question: ${context.currentQuestion || "Unknown"}. Answer: ${answer.slice(0, 1200)}. Return ONLY compact valid JSON with integer scores 0-10 for all dimensions. A basically correct answer should score 6-8. For technical questions, behavioral equals the overall score. If any dimension is below 6, ask one short relevant follow-up to clarify it; do not reveal the answer. Otherwise no follow-up. Required schema: {"score":6,"strengths":["short"],"weaknesses":["short"],"feedback":"short","technicalKnowledge":6,"problemSolving":6,"communication":6,"relevance":6,"confidence":6,"behavioral":6,"jobSkills":6,"shouldFollowUp":false,"followUpQuestion":""}`;
+      const retryResult = await callOllama(compactPrompt, 512);
+      analysis = parseJSON<AIAnswerAnalysis>(retryResult);
+    }
 
     if (!analysis || typeof analysis !== "object" || Array.isArray(analysis)) {
       throw new Error("Ollama evaluation response was not a JSON object.");
