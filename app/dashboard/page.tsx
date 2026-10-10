@@ -221,7 +221,7 @@ export default async function CandidateDashboardPage() {
                         {interview.report?.overallScore !== null && interview.report?.overallScore !== undefined ? "/10" : ""}
                       </p>
                     </div>
-                    <Link href={`/interview/${interview.id}`} className="inline-flex w-fit rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                    <Link href={`/interview/${interview.id}/report`} className="inline-flex w-fit rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
                       Open report
                     </Link>
                   </li>
