@@ -118,11 +118,26 @@ export default async function InterviewReportPage({ params }: PageProps) {
   });
   const strengths = [...new Set(evaluatedAnswers.flatMap((item) => safeLines(item.evaluation?.strengths)))].slice(0, 8);
   const improvements = [...new Set(evaluatedAnswers.flatMap((item) => safeLines(item.evaluation?.weaknesses)))].slice(0, 8);
-  const overall = report.overallScore;
+  const overallValues = evaluatedAnswers.flatMap((item) => {
+    const e = item.evaluation!;
+    const values = [e.technicalKnowledge, e.problemSolving, e.communication, e.relevance, e.confidence, e.jobSkills];
+    if (item.question.type === "BEHAVIORAL") values.push(e.behavioral);
+    return values;
+  });
+  const overall = overallValues.length
+    ? Math.round((overallValues.reduce((a, b) => a + b, 0) / overallValues.length) * 10) / 10
+    : null;
   const overallText = overall === null ? "Awaiting enough evaluation data" : scoreLabel(overall);
+  const recommendation =
+    overall === null ? "Not enough evaluated answers yet" :
+    overall >= 8 ? "Strong performance" :
+    overall >= 6.5 ? "Good progress — keep practicing" :
+    overall >= 5 ? "Developing — focus on the improvement areas" :
+    "Practice recommended — use the question-by-question feedback as a guide";
   const questionCount = report.interview.questions.length;
   const answerCount = answers.length;
   const evaluationCount = evaluatedAnswers.length;
+  const reportSummary = `Reviewed ${answerCount} submitted answer(s). ${evaluationCount} answer(s) received an AI evaluation. The overall score averages the applicable dimensions from evaluated answers; answers without an evaluation are not counted as zero. Behavioral scoring is included only for questions marked behavioral.`;
 
   return (
     <main className="min-h-screen bg-[#05080d] text-slate-100">
@@ -163,8 +178,8 @@ export default async function InterviewReportPage({ params }: PageProps) {
             </div>
           </div>
           <div className="mt-5 rounded-xl border border-cyan-400/15 bg-cyan-400/[0.04] p-4">
-            <p className="text-sm font-semibold text-cyan-200">{report.recommendation || overallText}</p>
-            <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-300">{report.summary || "This report summarizes the answer evaluations saved during the interview."}</p>
+            <p className="text-sm font-semibold text-cyan-200">{recommendation}</p>
+            <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-300">{reportSummary}</p>
             {evaluationCount < answerCount && <p className="mt-2 text-xs text-amber-200">Coverage note: {answerCount - evaluationCount} submitted answer(s) did not receive an AI evaluation, so they are not treated as low-scoring answers.</p>}
           </div>
         </section>
