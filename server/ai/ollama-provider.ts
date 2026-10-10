@@ -37,7 +37,9 @@ async function callOllama(prompt: string): Promise<string> {
       keep_alive: "10m",
       options: {
         temperature: 0.2,
-        num_predict: 160,
+        // Answer evaluations contain several scores and feedback fields. 160 tokens
+        // can truncate the JSON mid-field, making parsing fail even when Ollama works.
+        num_predict: 512,
       },
     }),
     signal: AbortSignal.timeout(45000),
